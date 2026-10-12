@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 page-title">Guida alle formule</h1>
+<div class="row g-3">
+<div class="col-lg-7">
+  <div class="card mb-3"><div class="card-header">Come lavora il motore di calcolo</div><div class="card-body">
+    <ol class="mb-0">
+      <li>Si prende la <strong>struttura retributiva</strong> del cedolino (dal contratto, o la tredicesima).</li>
+      <li>Le regole si eseguono in ordine di <strong>sequenza</strong>.</li>
+      <li>Se la <strong>condizione</strong> è falsa la regola viene saltata; se è vuota vale sempre.</li>
+      <li>La <strong>formula</strong> calcola l'importo, arrotondato al centesimo.</li>
+      <li>L'importo è salvato in <code>rules.CODICE</code> e sommato a <code>categories.CATEGORIA</code>: le regole successive lo possono usare.</li>
+      <li>Il netto è una regola come le altre: competenze meno trattenute.</li>
+    </ol>
+  </div></div>
+  <div class="card mb-3"><div class="card-header">Cosa puoi usare nelle formule</div>
+    <table class="table table-sm mb-0">
+      <tr><td><code>contract.minimo</code> · <code>superminimo</code> · <code>scatti_n</code> · <code>scatto_importo</code></td><td>Dati economici del contratto</td></tr>
+      <tr><td><code>contract.part_time</code> · <code>ore_settimanali</code> · <code>divisore</code></td><td>Part-time in %, orario, divisore orario (173)</td></tr>
+      <tr><td><code>contract.add_reg_rata</code> · <code>add_com_rata</code> · <code>livello</code> · <code>tipo</code></td><td>Rate addizionali, livello, tipo contratto</td></tr>
+      <tr><td><code>retribuzione_mensile</code></td><td>(minimo + superminimo + scatti) × part-time</td></tr>
+      <tr><td><code>reddito_presunto_annuo</code></td><td>Retribuzione × mensilità, meno contributi</td></tr>
+      <tr><td><code>reddito_ordinario_annuo</code></td><td>Come sopra ma su 12 mesi (serve alla tredicesima)</td></tr>
+      <tr><td><code>employee.qualifica</code> · <code>reparto</code> · <code>matricola</code></td><td>Dati del dipendente (testo)</td></tr>
+      <tr><td><code>giorni</code> · <code>ore</code> · <code>mese</code> · <code>anno</code> · <code>tipo</code></td><td>Dati del cedolino</td></tr>
+      <tr><td><code>inputs.CODICE</code></td><td>Variabili del mese (vedi a destra); 0 se non inserite</td></tr>
+      <tr><td><code>param.CODICE</code></td><td>Parametri della pagina Tabelle</td></tr>
+      <tr><td><code>categories.CODICE</code></td><td>Totale della categoria, fino a questa regola</td></tr>
+      <tr><td><code>rules.CODICE</code></td><td>Risultato di una regola già eseguita</td></tr>
+    </table></div>
+  <div class="card mb-3"><div class="card-header">Funzioni</div>
+    <table class="table table-sm mb-0">{% for f, d in helpers %}<tr><td><code>{{ f }}</code></td><td>{{ d }}</td></tr>{% endfor %}</table></div>
+  <div class="card"><div class="card-header">Esempi</div><div class="card-body">
+    <p class="mb-1">Indennità di 3 € per ogni giorno lavorato, solo per gli operai:</p>
+    <pre class="formula bg-light p-2">condizione: employee.qualifica == 'operaio'
+formula:    giorni * 3</pre>
+    <p class="mb-1">Formula su più righe (termina sempre con <code>result =</code>):</p>
+    <pre class="formula bg-light p-2">oraria = categories.BASE / contract.divisore
+result = inputs.STR25 * oraria * 1.25</pre>
+    <p class="mb-1">Condizione con più criteri:</p>
+    <pre class="formula bg-light p-2 mb-0">rules.REDD_ANNUO &lt;= 15000 and contract.tipo != 'apprendistato'</pre>
+  </div></div>
+</div>
+<div class="col-lg-5">
+  <div class="card mb-3"><div class="card-header">Variabili del mese (<code>inputs.</code>)</div>
+    <table class="table table-sm mb-0">{% for c, l, u in inputs %}<tr><td><code>{{ c }}</code></td><td>{{ l }}</td><td class="small text-muted">{{ u }}</td></tr>{% endfor %}</table></div>
+  <div class="card mb-3"><div class="card-header">Categorie (<code>categories.</code>)</div>
+    <table class="table table-sm mb-0">{% for c in cats %}<tr><td><code>{{ c.codice }}</code></td><td>{{ c.nome }}</td><td class="small text-muted">{{ c.tipo }}</td></tr>{% endfor %}</table></div>
+  <div class="card"><div class="card-header">Parametri (<code>param.</code>)</div>
+    <table class="table table-sm mb-0">{% for p in params %}<tr><td><code>{{ p.codice }}</code></td><td class="num">{{ p.valore|num(2) }} {{ p.unita }}</td></tr>{% endfor %}</table></div>
+</div>
+</div>
+<p class="small text-muted mt-3">Il modello a strutture, categorie e regole è ispirato al modulo Payroll della Odoo Community Association (OCA), rilasciato con licenza LGPL-3. MasterPayroll Academy è una riscrittura indipendente a scopo didattico.</p>
+{% endblock %}

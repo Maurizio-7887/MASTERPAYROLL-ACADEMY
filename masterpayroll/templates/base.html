@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}MasterPayroll Academy{% endblock %}</title>
+  <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='app.css') }}" rel="stylesheet">
+</head>
+<body>
+<div class="banner-formativo">AMBIENTE FORMATIVO — DATI SIMULATI · Ferro &amp; Transenne Srl è un'azienda fittizia</div>
+{% if current_user.is_authenticated %}
+<nav class="navbar navbar-expand-lg navbar-dark mp-nav">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('main.dashboard') }}"><i class="bi bi-cash-coin"></i> MasterPayroll <span class="text-warning">Academy</span></a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dipendenti') }}"><i class="bi bi-people"></i> Dipendenti</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.elaborazioni') }}"><i class="bi bi-calculator"></i> Elaborazioni</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.riepilogo') }}"><i class="bi bi-bank"></i> Versamenti F24</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.strutture') }}"><i class="bi bi-diagram-3"></i> Strutture e regole</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.tabelle') }}"><i class="bi bi-table"></i> Tabelle</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.esercitazioni') }}"><i class="bi bi-journal-check"></i> Esercitazioni</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.guida') }}"><i class="bi bi-question-circle"></i> Guida</a></li>
+        {% if current_user.is_docente %}
+        <li class="nav-item"><a class="nav-link text-warning" href="{{ url_for('docente.index') }}"><i class="bi bi-mortarboard"></i> Area docente</a></li>
+        {% endif %}
+      </ul>
+      <div class="d-flex align-items-center gap-2 text-white-50 small">
+        <span><i class="bi bi-person-circle"></i> {{ current_user.display_name }}</span>
+        <a class="btn btn-sm btn-outline-light" href="{{ url_for('auth.cambia_password') }}" title="Cambia password"><i class="bi bi-key"></i></a>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <button class="btn btn-sm btn-outline-light" title="Esci"><i class="bi bi-box-arrow-right"></i></button>
+        </form>
+      </div>
+    </div>
+  </div>
+</nav>
+{% if ws_altrui %}
+<div class="alert alert-warning rounded-0 mb-0 py-2 d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-eye"></i> Stai lavorando nell'ambiente dell'allievo <strong>{{ ws.owner.display_name }}</strong>: ogni modifica resta nel suo ambiente.</span>
+  <form method="post" action="{{ url_for('docente.torna') }}" class="m-0">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button class="btn btn-sm btn-dark">Torna all'area docente</button>
+  </form>
+</div>
+{% endif %}
+{% endif %}
+<main class="container-fluid py-3 px-lg-4">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}
+    <div class="alert alert-{{ cat if cat != 'message' else 'info' }} alert-dismissible fade show py-2">{{ m }}
+      <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

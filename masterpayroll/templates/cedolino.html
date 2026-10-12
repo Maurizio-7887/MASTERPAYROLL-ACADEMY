@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, stato %}
+{% block content %}
+{% set ro = ced.stato=='confermato' %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h1 class="h4 page-title mb-0">Cedolino {{ MESI[ced.mese] }} {{ ced.anno }} · {{ ced.dipendente.nominativo }}</h1>
+    <div class="small text-muted">{{ ced.tipo }} · struttura {{ ced.struttura.codice if ced.struttura }} · {{ stato(ced.stato) }}
+      {% if ced.elaborazione %}· <a href="{{ url_for('main.elaborazione', el_id=ced.elaborazione_id) }}">torna all'elaborazione</a>{% endif %}</div></div>
+  <a href="{{ url_for('main.cedolino_stampa', ced_id=ced.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary {{ 'disabled' if ced.stato=='bozza' }}"><i class="bi bi-printer"></i> Stampa</a>
+</div>
+{% if ced.errore %}<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> {{ ced.errore }}</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <form method="post" class="card p-3">{{ csrf() }}
+      <h2 class="h6">Dati del mese</h2>
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label small">Giorni lavorati</label><input name="giorni_lavorati" class="form-control form-control-sm text-end" value="{{ ced.giorni_lavorati|inval }}" {{ 'disabled' if ro }}></div>
+        <div class="col-6"><label class="form-label small">Ore lavorate</label><input name="ore_lavorate" class="form-control form-control-sm text-end" value="{{ ced.ore_lavorate|inval }}" {{ 'disabled' if ro }}></div>
+        <div class="col-12"><label class="form-label small">Struttura retributiva</label>
+          <select name="struttura_id" class="form-select form-select-sm" {{ 'disabled' if ro }}>{% for s in strutture %}<option value="{{ s.id }}" {{ 'selected' if ced.struttura_id==s.id }}>{{ s.codice }} · {{ s.nome }}</option>{% endfor %}</select></div>
+      </div>
+      <h2 class="h6 mt-2">Variabili (input)</h2>
+      {% for cod, lbl, um in catalogo %}
+      <div class="row g-1 align-items-center mb-1">
+        <label class="col-8 small" title="{{ cod }}">{{ lbl }} <span class="text-muted">({{ um }})</span></label>
+        <div class="col-4"><input name="in_{{ cod }}" class="form-control form-control-sm text-end" value="{{ inputs[cod]|inval if inputs.get(cod) else '' }}" {{ 'disabled' if ro }}></div>
+      </div>
+      {% endfor %}
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        {% if ro %}
+          <button class="btn btn-outline-warning btn-sm" name="azione" value="riapri"><i class="bi bi-unlock"></i> Riapri</button>
+        {% else %}
+          <button class="btn btn-primary btn-sm" name="azione" value="calcola"><i class="bi bi-calculator"></i> Salva e calcola</button>
+          <button class="btn btn-success btn-sm" name="azione" value="conferma" {{ 'disabled' if ced.stato!='calcolato' }}><i class="bi bi-check2"></i> Conferma</button>
+          <button class="btn btn-outline-danger btn-sm ms-auto" name="azione" value="elimina" onclick="return confirm('Eliminare il cedolino?')"><i class="bi bi-trash"></i></button>
+        {% endif %}
+      </div>
+    </form>
+    {% if contatori %}
+    <div class="card mt-3"><div class="card-header">Ferie e permessi {{ ced.anno }} (ore)</div>
+      <table class="table table-sm mb-0"><thead><tr><th></th><th class="num">Maturate</th><th class="num">Godute</th><th class="num">Residue</th></tr></thead>
+        {% for k, v in contatori.items() %}<tr><td>{{ k }}</td><td class="num">{{ v.maturato|euro }}</td><td class="num">{{ v.goduto|euro }}</td><td class="num">{{ v.residuo|euro }}</td></tr>{% endfor %}
+      </table></div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    {% if ced.righe %}
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span>Busta paga</span><span>Netto <strong class="fs-5">€ {{ ced.netto|euro }}</strong></span></div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Codice</th><th>Voce</th><th class="num">Quantità</th><th class="num">Base</th><th class="num">Competenze</th><th class="num">Trattenute</th></tr></thead>
+        <tbody>{% for r in ced.righe if r.stampa and r.categoria_tipo in ('competenza','trattenuta') %}
+          <tr><td class="small text-muted">{{ r.codice }}</td><td>{{ r.nome }}</td><td class="num">{{ r.quantita|num if r.quantita is not none }}</td><td class="num">{{ r.base|num(4) if r.base is not none }}</td>
+            <td class="num">{{ r.importo|euro if r.categoria_tipo=='competenza' }}</td><td class="num">{{ r.importo|euro if r.categoria_tipo=='trattenuta' }}</td></tr>{% endfor %}</tbody>
+        {% set comp = ced.righe|selectattr('categoria_tipo','equalto','competenza')|sum(attribute='importo') %}
+        {% set tratt = ced.righe|selectattr('categoria_tipo','equalto','trattenuta')|sum(attribute='importo') %}
+        <tfoot><tr class="fw-bold"><td colspan="4">Totali</td><td class="num">{{ comp|euro }}</td><td class="num">{{ tratt|euro }}</td></tr></tfoot>
+      </table></div></div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6"><div class="card h-100"><div class="card-header">Contributi e imposte</div>
+        <table class="table table-sm mb-0">
+          {% for cod, lbl in [('LORDO','Lordo imponibile'),('IMP_PREV','Imponibile previdenziale'),('IMP_FISC','Imponibile fiscale'),('REDD_ANNUO','Reddito annuo presunto'),('IRPEF_LORDA','IRPEF lorda'),('DETR_LAV','Detrazioni lavoro dipendente'),('DETR_CUNEO','Ulteriore detrazione cuneo'),('IRPEF','IRPEF netta trattenuta')] %}
+            {% if ced.riga(cod) %}<tr><td>{{ lbl }}</td><td class="num">{{ ced.importo(cod)|euro }}</td></tr>{% endif %}{% endfor %}
+        </table></div></div>
+      <div class="col-md-6"><div class="card h-100"><div class="card-header">Costo per l'azienda</div>
+        <table class="table table-sm mb-0">
+          {% for r in ced.righe if r.categoria_codice=='DITTA' %}<tr><td>{{ r.nome }}</td><td class="num">{{ r.importo|euro }}</td></tr>{% endfor %}
+          {% if ced.riga('COSTO') %}<tr class="fw-bold"><td>Costo aziendale del mese</td><td class="num">{{ ced.costo|euro }}</td></tr>{% endif %}
+        </table></div></div>
+    </div>
+    <div class="card"><div class="card-header"><a data-bs-toggle="collapse" href="#dettaglio" class="text-decoration-none"><i class="bi bi-chevron-down"></i> Dettaglio del calcolo: tutte le regole eseguite, in ordine</a></div>
+      <div id="dettaglio" class="collapse"><div class="table-responsive"><table class="table table-sm mb-0 align-top">
+        <thead><tr><th>Seq.</th><th>Regola</th><th>Cat.</th><th>Formula (attuale)</th><th class="num">Risultato</th></tr></thead>
+        <tbody>{% for r in ced.righe %}{% set reg = regole.get(r.codice) %}
+          <tr class="{{ 'riga-info' if r.categoria_tipo=='info' }}"><td>{{ r.sequenza }}</td><td><strong>{{ r.codice }}</strong><div class="small">{{ r.nome }}</div></td>
+            <td><span class="badge text-bg-light tag-cat">{{ r.categoria_codice }}</span></td>
+            <td>{% if reg %}<div class="formula">{{ reg.formula }}</div>{% if reg.condizione %}<div class="formula text-muted">se: {{ reg.condizione }}</div>{% endif %}
+              <a href="{{ url_for('main.regola_form', reg_id=reg.id) }}" class="small">modifica</a>{% endif %}</td>
+            <td class="num">{{ r.importo|euro }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <div class="small text-muted p-2">Le regole saltate (condizione falsa) non compaiono. Se nel frattempo hai modificato una regola, la formula mostrata è quella attuale: ricalcola per allineare il risultato.</div></div></div>
+    {% else %}
+    <div class="card p-4 text-center text-muted"><i class="bi bi-calculator fs-1"></i><p class="mb-0">Inserisci le variabili e premi <strong>Salva e calcola</strong>.</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

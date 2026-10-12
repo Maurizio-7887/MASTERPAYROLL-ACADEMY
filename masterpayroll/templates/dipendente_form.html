@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<h1 class="h4 page-title">{{ 'Modifica anagrafica' if d else 'Nuovo dipendente' }}</h1>
+<form method="post" class="card p-3">{{ csrf() }}
+  <h2 class="h6 text-muted">Anagrafica</h2>
+  <div class="row g-2 mb-3">
+    <div class="col-md-2"><label class="form-label">Matricola</label><input name="matricola" class="form-control" value="{{ d.matricola if d else nuova_matricola }}" required></div>
+    <div class="col-md-3"><label class="form-label">Cognome</label><input name="cognome" class="form-control" value="{{ d.cognome if d }}" required></div>
+    <div class="col-md-3"><label class="form-label">Nome</label><input name="nome" class="form-control" value="{{ d.nome if d }}" required></div>
+    <div class="col-md-4"><label class="form-label">Codice fiscale</label><input name="codice_fiscale" maxlength="16" class="form-control text-uppercase" value="{{ d.codice_fiscale if d }}"></div>
+    <div class="col-md-3"><label class="form-label">Data di nascita</label><input name="data_nascita" type="date" class="form-control" value="{{ d.data_nascita.isoformat() if d and d.data_nascita }}"></div>
+    <div class="col-md-3"><label class="form-label">Comune di residenza</label><input name="comune_residenza" class="form-control" value="{{ d.comune_residenza if d }}"></div>
+    <div class="col-md-3"><label class="form-label">Data assunzione</label><input name="data_assunzione" type="date" class="form-control" value="{{ d.data_assunzione.isoformat() if d and d.data_assunzione }}"></div>
+    <div class="col-md-3"><label class="form-label">Data cessazione</label><input name="data_cessazione" type="date" class="form-control" value="{{ d.data_cessazione.isoformat() if d and d.data_cessazione }}"></div>
+    <div class="col-md-3"><label class="form-label">Qualifica</label>
+      <select name="qualifica" class="form-select">{% for q in ['operaio','impiegato','apprendista','quadro'] %}<option {{ 'selected' if d and d.qualifica==q }}>{{ q }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Mansione</label><input name="mansione" class="form-control" value="{{ d.mansione if d }}"></div>
+    <div class="col-md-3"><label class="form-label">Reparto</label>
+      <input name="reparto" list="reparti" class="form-control" value="{{ d.reparto if d }}">
+      <datalist id="reparti">{% for r in ['Taglio','Piega','Saldatura','Packaging','Amministrazione','Commerciale','Direzione'] %}<option>{{ r }}</option>{% endfor %}</datalist></div>
+    <div class="col-md-2"><label class="form-label">Attivo</label><div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" name="attivo" {{ 'checked' if not d or d.attivo }}></div></div>
+  </div>
+  {% if not d %}
+  <h2 class="h6 text-muted">Contratto</h2>
+  {% include "_contratto_fields.html" %}
+  {% endif %}
+  <div class="mt-3"><button class="btn btn-primary">Salva</button>
+    <a href="{{ url_for('main.dipendente', dip_id=d.id) if d else url_for('main.dipendenti') }}" class="btn btn-link">Annulla</a></div>
+</form>
+{% endblock %}

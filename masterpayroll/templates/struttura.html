@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+  <div><h1 class="h4 page-title mb-0"><span class="badge text-bg-dark">{{ st.codice }}</span> {{ st.nome }}</h1>
+    <div class="small text-muted">Le regole vengono eseguite dall'alto in basso (sequenza). <a href="{{ url_for('main.guida') }}">Guida alle formule</a></div></div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.regola_form', st_id=st.id) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle"></i> Nuova regola</a>
+    <form method="post">{{ csrf() }}<button class="btn btn-sm btn-outline-primary" name="azione" value="ricalcola"><i class="bi bi-arrow-repeat"></i> Ricalcola i cedolini non confermati</button></form>
+  </div>
+</div>
+<div class="card mb-3"><div class="table-responsive">
+<table class="table table-sm table-hover mb-0 align-top">
+  <thead><tr><th>Seq.</th><th>Codice</th><th>Nome</th><th>Cat.</th><th>Condizione</th><th>Formula</th><th>Registro</th><th></th></tr></thead>
+  <tbody>{% for r in st.regole %}
+    <tr class="{{ 'text-decoration-line-through text-muted' if not r.attiva }}">
+      <td>{{ r.sequenza }}</td><td><strong>{{ r.codice }}</strong></td>
+      <td>{{ r.nome }}{% if not r.stampa %} <i class="bi bi-eye-slash text-muted" title="Non stampata sul cedolino"></i>{% endif %}</td>
+      <td><span class="badge text-bg-light tag-cat">{{ r.categoria.codice if r.categoria }}</span></td>
+      <td><div class="formula text-muted">{{ r.condizione }}</div></td>
+      <td><div class="formula">{{ r.formula }}</div></td>
+      <td class="small">{{ r.registro }}</td>
+      <td><a href="{{ url_for('main.regola_form', reg_id=r.id) }}" class="btn btn-sm btn-link p-0"><i class="bi bi-pencil"></i></a></td></tr>
+  {% endfor %}</tbody>
+</table></div></div>
+<form method="post" class="card p-3">{{ csrf() }}
+  <h2 class="h6">Dati della struttura</h2>
+  <div class="row g-2">
+    <div class="col-md-5"><input name="nome" class="form-control" value="{{ st.nome }}"></div>
+    <div class="col-md-3"><select name="tipo_cedolino" class="form-select">{% for t in ['ordinaria','tredicesima'] %}<option {{ 'selected' if st.tipo_cedolino==t }}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-12"><textarea name="descrizione" class="form-control" rows="2">{{ st.descrizione }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-outline-primary" name="azione" value="salva">Salva</button>
+    <button class="btn btn-sm btn-outline-danger ms-auto" name="azione" value="elimina" onclick="return confirm('Eliminare la struttura?')">Elimina struttura</button></div>
+</form>
+{% endblock %}

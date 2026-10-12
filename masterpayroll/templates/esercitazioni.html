@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<h1 class="h4 page-title">Esercitazioni</h1>
+<p class="text-muted">Svolgi gli esercizi nel tuo ambiente. Quando hai finito, scrivi le tue risposte e premi <em>Consegna</em>: il docente le vede nella sua area.</p>
+{% for e in elenco %}{% set s = svolte.get(e.id) %}
+<div class="card mb-3 {% if s %}border-success{% endif %}">
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ loop.index }}. {{ e.titolo }}</span>
+    <span>{% if s %}<span class="badge text-bg-success">consegnata {{ s.consegnata_at.strftime('%d/%m %H:%M') }}</span>{% endif %}
+      <span class="badge text-bg-light">{{ e.livello }}</span></span>
+  </div>
+  <div class="card-body">
+    <p style="white-space:pre-line">{{ e.testo }}</p>
+    <form method="post">{{ csrf() }}<input type="hidden" name="esercitazione_id" value="{{ e.id }}">
+      <textarea name="nota" class="form-control mb-2" rows="3" placeholder="Le tue risposte e i calcoli fatti a mano">{{ s.nota if s else '' }}</textarea>
+      <button class="btn btn-sm btn-success" name="azione" value="consegna">{{ 'Aggiorna consegna' if s else 'Consegna' }}</button>
+      {% if s %}<button class="btn btn-sm btn-outline-secondary" name="azione" value="annulla">Annulla consegna</button>{% endif %}
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

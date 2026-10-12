@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 page-title mb-0">{{ u.display_name }} <small class="text-muted">{{ u.classe }}</small></h1>
+  <div class="d-flex gap-2"><a href="{{ url_for('docente.index') }}" class="btn btn-sm btn-link">← Area docente</a>
+    <form method="post" action="{{ url_for('docente.apri', user_id=u.id) }}">{{ csrf() }}<button class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Entra nel suo ambiente</button></form></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card kpi p-3 mb-3"><div class="lbl">Ore di attività</div><div class="val">{{ ore|euro }}</div><div class="small text-muted">{{ n_sess }} sessioni</div></div>
+    <div class="card"><div class="card-header">Ore per giorno</div>
+      <table class="table table-sm mb-0">{% for gg, h in per_giorno.items() %}<tr><td>{{ gg.strftime('%d/%m/%Y') }}</td><td class="num">{{ h|euro }}</td></tr>{% else %}<tr><td class="text-muted">Nessuna attività.</td></tr>{% endfor %}</table></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-header">Esercitazioni consegnate</div>
+      {% for s, e in svolte %}<div class="card-body border-bottom"><strong>{{ e.titolo }}</strong> <span class="small text-muted">· {{ s.consegnata_at.strftime('%d/%m/%Y %H:%M') }} UTC</span>
+        <div style="white-space:pre-line" class="mt-1">{{ s.nota or '—' }}</div></div>
+      {% else %}<div class="card-body text-muted">Nessuna consegna.</div>{% endfor %}</div>
+    <div class="card"><div class="card-header">Ultime azioni</div>
+      <table class="table table-sm mb-0 small">{% for a in ultime %}<tr><td>{{ a.ts.strftime('%d/%m %H:%M:%S') }}</td><td>{{ a.metodo }}</td><td>{{ a.path }}</td></tr>{% endfor %}</table></div>
+  </div>
+</div>
+{% endblock %}

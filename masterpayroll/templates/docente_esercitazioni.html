@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h4 page-title mb-0">Esercitazioni</h1><a href="{{ url_for('docente.index') }}" class="btn btn-sm btn-link">← Area docente</a></div>
+{% for e in elenco + [None] %}
+<form method="post" class="card p-3 mb-3 {{ 'border-primary' if not e }}">{{ csrf() }}
+  {% if e %}<input type="hidden" name="id" value="{{ e.id }}">{% else %}<h2 class="h6 text-primary">Nuova esercitazione</h2>{% endif %}
+  <div class="row g-2">
+    <div class="col-md-1"><label class="form-label small">Ordine</label><input name="ordine" type="number" class="form-control form-control-sm" value="{{ e.ordine if e else elenco|length + 1 }}"></div>
+    <div class="col-md-7"><label class="form-label small">Titolo</label><input name="titolo" class="form-control form-control-sm" value="{{ e.titolo if e }}"></div>
+    <div class="col-md-2"><label class="form-label small">Livello</label><select name="livello" class="form-select form-select-sm">{% for l in ['base','medio','avanzato'] %}<option {{ 'selected' if e and e.livello==l }}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2 d-flex align-items-end"><div class="form-check"><input type="checkbox" class="form-check-input" name="attiva" {{ 'checked' if not e or e.attiva }}><label class="form-check-label small">visibile</label></div></div>
+    <div class="col-12"><textarea name="testo" class="form-control form-control-sm" rows="3">{{ e.testo if e }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-2 align-items-center"><button class="btn btn-sm btn-primary">Salva</button>
+    {% if e %}<span class="small text-muted">{{ consegne[e.id] }} consegne</span>
+    <button class="btn btn-sm btn-outline-danger ms-auto" name="azione" value="elimina" onclick="return confirm('Eliminare l\'esercitazione e le consegne?')">Elimina</button>{% endif %}</div>
+</form>
+{% endfor %}
+{% endblock %}

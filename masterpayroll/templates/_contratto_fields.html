@@ -1,0 +1,36 @@
+{% set c_ = c %}
+<div class="row g-2">
+  <div class="col-md-3"><label class="form-label">Tipo contratto</label>
+    <select name="tipo" class="form-select">{% for t in ['indeterminato','determinato','apprendistato'] %}<option {{ 'selected' if c_ and c_.tipo==t }}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Livello CCNL</label>
+    <select name="livello_id" class="form-select" id="livello_sel">
+      <option value="">—</option>{% for l in livelli %}<option value="{{ l.id }}" data-min="{{ l.minimo }}" data-scatto="{{ l.scatto_importo }}" {{ 'selected' if c_ and c_.livello_id==l.id }}>{{ l.codice }} · {{ l.descrizione }}</option>{% endfor %}
+    </select>
+    <div class="form-check small mt-1"><input class="form-check-input" type="checkbox" name="usa_tabella" id="usa_tabella" {{ 'checked' if not c_ }}>
+      <label class="form-check-label" for="usa_tabella">prendi minimo e scatto dalla tabella</label></div></div>
+  <div class="col-md-3"><label class="form-label">Struttura retributiva</label>
+    <select name="struttura_id" class="form-select">{% for s in strutture if s.tipo_cedolino=='ordinaria' %}<option value="{{ s.id }}" {{ 'selected' if (c_ and c_.struttura_id==s.id) or (not c_ and struttura_default and struttura_default.id==s.id) }}>{{ s.codice }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Attivo</label>
+    <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" name="contratto_attivo" {{ 'checked' if not c_ or c_.attivo }}></div></div>
+  <div class="col-md-3"><label class="form-label">Minimo tabellare €</label><input name="minimo" class="form-control text-end" value="{{ c_.minimo if c_ else '' }}"></div>
+  <div class="col-md-3"><label class="form-label">Superminimo €</label><input name="superminimo" class="form-control text-end" value="{{ c_.superminimo if c_ else 0 }}"></div>
+  <div class="col-md-3"><label class="form-label">N. scatti anzianità</label><input name="scatti_n" type="number" min="0" class="form-control text-end" value="{{ c_.scatti_n if c_ else 0 }}"></div>
+  <div class="col-md-3"><label class="form-label">Importo scatto €</label><input name="scatto_importo" class="form-control text-end" value="{{ c_.scatto_importo if c_ else '' }}"></div>
+  <div class="col-md-3"><label class="form-label">Part-time %</label><input name="part_time" class="form-control text-end" value="{{ c_.part_time if c_ else 100 }}"></div>
+  <div class="col-md-3"><label class="form-label">Ore settimanali</label><input name="ore_settimanali" class="form-control text-end" value="{{ c_.ore_settimanali if c_ else 40 }}"></div>
+  <div class="col-md-3"><label class="form-label">Divisore orario</label><input name="divisore_orario" class="form-control text-end" value="{{ c_.divisore_orario if c_ else 173 }}"></div>
+  <div class="col-md-3"></div>
+  <div class="col-md-3"><label class="form-label">Rata addiz. regionale €</label><input name="add_reg_rata" class="form-control text-end" value="{{ c_.add_reg_rata if c_ else 0 }}"></div>
+  <div class="col-md-3"><label class="form-label">Rata addiz. comunale €</label><input name="add_com_rata" class="form-control text-end" value="{{ c_.add_com_rata if c_ else 0 }}"></div>
+  <div class="col-md-3"><label class="form-label">Data inizio</label><input name="data_inizio" type="date" class="form-control" value="{{ c_.data_inizio.isoformat() if c_ and c_.data_inizio else '' }}"></div>
+  <div class="col-md-3"><label class="form-label">Data fine (se a termine)</label><input name="data_fine" type="date" class="form-control" value="{{ c_.data_fine.isoformat() if c_ and c_.data_fine else '' }}"></div>
+</div>
+<script>
+document.getElementById('livello_sel').addEventListener('change', function () {
+  const o = this.selectedOptions[0];
+  if (o && o.dataset.min && document.getElementById('usa_tabella').checked) {
+    document.querySelector('[name=minimo]').value = o.dataset.min;
+    document.querySelector('[name=scatto_importo]').value = o.dataset.scatto;
+  }
+});
+</script>

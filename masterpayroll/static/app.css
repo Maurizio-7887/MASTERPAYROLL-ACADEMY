@@ -1,0 +1,20 @@
+:root { --mp-blu: #16324f; --mp-oro: #e0a526; }
+body { background: #f4f6f9; font-size: .93rem; }
+.banner-formativo { background: var(--mp-oro); color: #1d1d1d; text-align: center; font-weight: 700;
+  font-size: .75rem; letter-spacing: .06em; padding: 3px 8px; position: sticky; top: 0; z-index: 1030; }
+.mp-nav { background: var(--mp-blu); }
+.card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card-header { background: #fff; font-weight: 600; }
+.kpi .val { font-size: 1.5rem; font-weight: 700; color: var(--mp-blu); }
+.kpi .lbl { font-size: .78rem; text-transform: uppercase; color: #6c757d; letter-spacing: .04em; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table thead th { font-size: .78rem; text-transform: uppercase; color: #5a6470; letter-spacing: .03em; }
+.grid-input { width: 82px; text-align: right; padding: .15rem .35rem; font-size: .85rem; }
+.formula { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; white-space: pre-wrap; }
+textarea.formula { min-height: 3.2rem; }
+.stato-bozza { background: #adb5bd; } .stato-calcolato { background: #0d6efd; } .stato-confermato { background: #198754; }
+.riga-info td { color: #6c757d; font-size: .85rem; }
+.tag-cat { font-size: .7rem; font-family: ui-monospace, monospace; }
+.page-title { color: var(--mp-blu); font-weight: 700; }
+.login-box { max-width: 380px; margin: 8vh auto; }
+@media print { .banner-formativo, nav, .no-print, .alert { display: none !important; } body { background: #fff; } }

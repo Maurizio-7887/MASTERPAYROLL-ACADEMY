@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, stato, data %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h1 class="h4 page-title mb-0">{{ d.nominativo }} <small class="text-muted">matr. {{ d.matricola }}</small></h1>
+    <div class="text-muted">{{ d.mansione }} · {{ d.reparto }} {% if not d.attivo %}<span class="badge text-bg-secondary">non attivo</span>{% endif %}</div></div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.dipendente_modifica', dip_id=d.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Anagrafica</a>
+    <a href="{{ url_for('main.contratto_form', dip_id=d.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-plus"></i> Nuovo contratto</a>
+    <form method="post" action="{{ url_for('main.dipendente_elimina', dip_id=d.id) }}" onsubmit="return confirm('Eliminare il dipendente e i suoi cedolini non confermati?')">{{ csrf() }}
+      <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card"><div class="card-header">Anagrafica</div>
+      <table class="table table-sm mb-0">
+        <tr><th>Codice fiscale</th><td>{{ d.codice_fiscale }} <span class="small text-muted">(fittizio)</span></td></tr>
+        <tr><th>Nato il</th><td>{{ data(d.data_nascita) }}</td></tr>
+        <tr><th>Residenza</th><td>{{ d.comune_residenza }}</td></tr>
+        <tr><th>Qualifica</th><td>{{ d.qualifica }}</td></tr>
+        <tr><th>Assunzione</th><td>{{ data(d.data_assunzione) }}</td></tr>
+        <tr><th>Cessazione</th><td>{{ data(d.data_cessazione) }}</td></tr>
+      </table></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-header">Contratti</div><div class="table-responsive">
+      <table class="table table-sm mb-0 align-middle">
+        <thead><tr><th>Dal</th><th>Al</th><th>Tipo</th><th>Liv.</th><th class="num">Minimo</th><th class="num">Supermin.</th><th class="num">Scatti</th><th class="num">PT %</th><th class="num">Mensile</th><th>Struttura</th><th></th></tr></thead>
+        <tbody>{% for c in d.contratti|reverse %}
+          <tr class="{{ '' if c.attivo else 'text-muted' }}">
+            <td>{{ data(c.data_inizio) }}</td><td>{{ data(c.data_fine) }}</td><td>{{ c.tipo }}{% if c.attivo %} <span class="badge text-bg-success">attivo</span>{% endif %}</td>
+            <td>{{ c.livello.codice if c.livello }}</td><td class="num">{{ c.minimo|euro }}</td><td class="num">{{ c.superminimo|euro }}</td>
+            <td class="num">{{ c.scatti_n }} × {{ c.scatto_importo|euro }}</td><td class="num">{{ c.part_time|num }}</td>
+            <td class="num"><strong>{{ c.retribuzione_mensile|euro }}</strong></td><td class="small">{{ c.struttura.codice if c.struttura }}</td>
+            <td><a href="{{ url_for('main.contratto_form', con_id=c.id) }}" class="btn btn-sm btn-link p-0"><i class="bi bi-pencil"></i></a></td></tr>
+        {% else %}<tr><td colspan="11" class="text-muted">Nessun contratto.</td></tr>{% endfor %}</tbody>
+      </table></div></div>
+    <div class="card"><div class="card-header">Cedolini</div><div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead><tr><th>Periodo</th><th>Tipo</th><th>Stato</th><th class="num">Lordo</th><th class="num">Netto</th><th class="num">Costo</th></tr></thead>
+        <tbody>{% for c in cedolini %}
+          <tr onclick="location='{{ url_for('main.cedolino', ced_id=c.id) }}'" style="cursor:pointer">
+            <td>{{ MESI[c.mese] }} {{ c.anno }}</td><td>{{ c.tipo }}</td><td>{{ stato(c.stato) }}</td>
+            <td class="num">{{ c.lordo|euro }}</td><td class="num">{{ c.netto|euro }}</td><td class="num">{{ c.costo|euro }}</td></tr>
+        {% else %}<tr><td colspan="6" class="text-muted">Nessun cedolino.</td></tr>{% endfor %}</tbody>
+      </table></div></div>
+  </div>
+</div>
+{% endblock %}

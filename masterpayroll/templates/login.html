@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="login-box card p-4">
+  <h1 class="h4 page-title mb-1"><i class="bi bi-cash-coin"></i> MasterPayroll <span class="text-warning">Academy</span></h1>
+  <p class="text-muted small mb-4">Laboratorio di elaborazione paghe per la formazione</p>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div class="mb-3"><label class="form-label">Utente</label><input name="username" class="form-control" autofocus autocapitalize="none" required></div>
+    <div class="mb-3"><label class="form-label">Password</label><input name="password" type="password" class="form-control" required></div>
+    <button class="btn btn-primary w-100">Accedi</button>
+  </form>
+  <p class="small text-muted mt-3 mb-0">Le credenziali le fornisce il docente.</p>
+</div>
+{% endblock %}

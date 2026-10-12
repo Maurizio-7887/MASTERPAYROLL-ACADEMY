@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block content %}
+<h1 class="h4 page-title">{{ 'Nuova regola' if nuova else 'Regola ' ~ r.codice }} <small class="text-muted">· {{ st.codice }}</small></h1>
+<div class="row g-3">
+<div class="col-lg-8">
+<form method="post" class="card p-3">{{ csrf() }}
+  <div class="row g-2">
+    <div class="col-md-2"><label class="form-label">Sequenza</label><input name="sequenza" type="number" class="form-control" value="{{ r.sequenza if r else 100 }}"></div>
+    <div class="col-md-3"><label class="form-label">Codice</label><input name="codice" class="form-control text-uppercase" value="{{ r.codice if r }}" required></div>
+    <div class="col-md-7"><label class="form-label">Nome (come appare sul cedolino)</label><input name="nome" class="form-control" value="{{ r.nome if r }}" required></div>
+    <div class="col-md-5"><label class="form-label">Categoria</label>
+      <select name="categoria_id" class="form-select">{% for c in cats %}<option value="{{ c.id }}" {{ 'selected' if r and r.categoria and r.categoria.id==c.id }}>{{ c.codice }} · {{ c.nome }} ({{ c.tipo }})</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Registro di versamento</label><input name="registro" class="form-control" value="{{ r.registro if r }}" placeholder="es. INPS, Erario 1001"></div>
+    <div class="col-md-3 d-flex flex-column justify-content-end">
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="stampa" id="stampa" {{ 'checked' if not r or r.stampa }}><label class="form-check-label" for="stampa">Stampa sul cedolino</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="attiva" id="attiva" {{ 'checked' if not r or r.attiva }}><label class="form-check-label" for="attiva">Regola attiva</label></div></div>
+    <div class="col-12"><label class="form-label">Condizione <span class="small text-muted">(vuota = sempre)</span></label>
+      <textarea name="condizione" class="form-control formula" rows="2">{{ r.condizione if r }}</textarea></div>
+    <div class="col-12"><label class="form-label">Formula dell'importo</label>
+      <textarea name="formula" class="form-control formula" rows="4">{{ r.formula if r else '0' }}</textarea></div>
+    <div class="col-md-6"><label class="form-label">Quantità <span class="small text-muted">(solo per la stampa, facoltativa)</span></label>
+      <textarea name="quantita_formula" class="form-control formula" rows="1">{{ r.quantita_formula if r }}</textarea></div>
+    <div class="col-md-6"><label class="form-label">Base / importo unitario <span class="small text-muted">(facoltativa)</span></label>
+      <textarea name="base_formula" class="form-control formula" rows="1">{{ r.base_formula if r }}</textarea></div>
+    <div class="col-12"><label class="form-label">Note didattiche</label><textarea name="note" class="form-control" rows="2">{{ r.note if r }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary">Salva</button>
+    <a href="{{ url_for('main.struttura', st_id=st.id) }}" class="btn btn-link">Annulla</a>
+    {% if not nuova and r.id %}<button class="btn btn-outline-danger ms-auto" name="azione" value="elimina" onclick="return confirm('Eliminare la regola?')">Elimina</button>{% endif %}
+  </div>
+</form>
+</div>
+<div class="col-lg-4">
+  <div class="card p-3 small">
+    <h2 class="h6">Promemoria formule</h2>
+    <ul class="mb-2 ps-3">
+      <li><code>contract.minimo</code>, <code>contract.part_time</code>, <code>contract.divisore</code>…</li>
+      <li><code>inputs.STR25</code>, <code>inputs.RIMBORSI</code>… (variabili del mese)</li>
+      <li><code>categories.BASE</code>: totale della categoria fin qui</li>
+      <li><code>rules.LORDO</code>: risultato di una regola precedente</li>
+      <li><code>param.INPS_DIP</code>: parametro della pagina Tabelle</li>
+      <li><code>employee.reparto == 'Saldatura'</code></li>
+    </ul>
+    <p class="mb-1">Formula su più righe: termina con <code>result = …</code></p>
+    <pre class="formula bg-light p-2 mb-2">base = categories.BASE
+result = base * 2 / 100</pre>
+    <a href="{{ url_for('main.guida') }}">Guida completa</a>
+  </div>
+</div>
+</div>
+{% endblock %}

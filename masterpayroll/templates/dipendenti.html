@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 page-title mb-0">Dipendenti</h1>
+  <div class="d-flex gap-2">
+    <div class="btn-group btn-group-sm">
+      <a href="?mostra=attivi" class="btn btn-outline-secondary {{ 'active' if mostra=='attivi' }}">Attivi</a>
+      <a href="?mostra=tutti" class="btn btn-outline-secondary {{ 'active' if mostra=='tutti' }}">Tutti</a>
+    </div>
+    <a href="{{ url_for('main.dipendente_nuovo') }}" class="btn btn-primary btn-sm"><i class="bi bi-person-plus"></i> Nuovo dipendente</a>
+  </div>
+</div>
+<div class="card"><div class="table-responsive">
+<table class="table table-hover mb-0 align-middle">
+  <thead><tr><th>Matr.</th><th>Nominativo</th><th>Qualifica</th><th>Reparto</th><th>Contratto</th><th>Livello</th><th class="num">Part-time</th><th class="num">Retrib. mensile</th></tr></thead>
+  <tbody>
+  {% for d in elenco %}{% set c = d.contratto_attivo %}
+    <tr onclick="location='{{ url_for('main.dipendente', dip_id=d.id) }}'" style="cursor:pointer" class="{{ 'text-muted' if not d.attivo }}">
+      <td>{{ d.matricola }}</td><td><strong>{{ d.nominativo }}</strong><div class="small text-muted">{{ d.mansione }}</div></td>
+      <td>{{ d.qualifica }}</td><td>{{ d.reparto }}</td>
+      <td>{{ c.tipo if c else '—' }}</td><td>{{ c.livello.codice if c and c.livello else '' }}</td>
+      <td class="num">{{ (c.part_time|num ~ '%') if c else '' }}</td>
+      <td class="num">{{ ('€ ' ~ c.retribuzione_mensile|euro) if c else '' }}</td>
+    </tr>
+  {% else %}<tr><td colspan="8" class="text-muted">Nessun dipendente.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}
