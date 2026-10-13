@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, row %}
+{% block title %}{{ st.name if st else 'Nuova struttura' }}{% endblock %}
+{% block controlpanel %}{{ cp([("Strutture stipendio", url_for('main.structures')), (st.code ~ ' · ' ~ st.name if st else 'Nuovo', None)], "hr.payroll.structure") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+<div class="o-form-header"><div class="d-flex gap-1">
+  <button class="btn btn-sm btn-primary" name="action" value="save">Salva</button>
+  {% if st %}<button class="btn btn-sm btn-outline-secondary" name="action" value="copy">Duplica</button>
+  <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare la struttura?"><i class="bi bi-trash"></i></button>{% endif %}
+</div></div>
+<div class="o-sheet">
+  <div class="row"><div class="col-lg-7">
+    <label class="small text-muted">Nome</label>
+    <input name="name" value="{{ st.name if st }}" class="form-control mb-3" style="font-size:1.25rem;font-weight:600" required>
+    {% call row("Riferimento") %}<input name="code" value="{{ st.code if st and st.code }}" class="form-control form-control-sm code">{% endcall %}
+    {% call row("Padre", "Le regole della struttura padre vengono ereditate") %}<select name="parent_id" class="form-select form-select-sm"><option value=""></option>{% for o in others %}<option value="{{ o.id }}" {{ 'selected' if st and st.parent_id == o.id }}>{{ o.code }} · {{ o.name }}</option>{% endfor %}</select>{% endcall %}
+    {% call row("Descrizione") %}<textarea name="note" class="form-control form-control-sm" rows="2">{{ st.note if st }}</textarea>{% endcall %}
+  </div>
+  {% if st %}<div class="col-lg-5">
+    <div class="small text-muted mb-1">Catena delle strutture (padre → figlia)</div>
+    <div class="mb-2">{% for s in st.get_structure_with_parents() %}<span class="badge text-bg-light border">{{ s.code }}</span>{% if not loop.last %} → {% endif %}{% endfor %}</div>
+    {% if st.children_ids %}<div class="small text-muted">Strutture figlie: {% for c in st.children_ids %}<a href="{{ url_for('main.structure', st_id=c.id) }}">{{ c.code }}</a> {% endfor %}</div>{% endif %}
+  </div>{% endif %}</div>
+</div>
+</form>
+{% if st %}
+<ul class="nav nav-tabs o-notebook mt-3">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#own">Regole stipendio ({{ st.rule_ids|length }})</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#all">Tutte le regole applicate ({{ all_rules|length }})</button></li>
+</ul>
+<div class="tab-content o-sheet" style="border-top:0">
+  <div class="tab-pane fade show active" id="own">
+    <table class="table table-sm table-hover align-middle"><thead><tr><th>Seq.</th><th>Codice</th><th>Nome</th><th>Categoria</th><th>Condizione</th><th>Importo</th><th>Figlie</th><th></th></tr></thead>
+    <tbody>{% for r in st.rule_ids %}
+      <tr><td>{{ r.sequence }}</td><td class="code"><a href="{{ url_for('main.rule', rule_id=r.id) }}">{{ r.code }}</a></td><td>{{ r.name }}{% if not r.active %} <span class="badge text-bg-secondary">archiviata</span>{% endif %}</td>
+        <td class="small">{{ r.category.code if r.category }}</td><td class="small">{{ {'none':'Sempre vera','range':'Intervallo','python':'Python'}[r.condition_select] }}</td>
+        <td class="small">{{ {'fix':'Fisso','percentage':'Percentuale','code':'Python'}[r.amount_select] }}</td><td class="small">{{ r.child_ids|map(attribute='code')|join(', ') }}</td>
+        <td><form method="post" class="m-0">{{ csrf() }}<input type="hidden" name="action" value="remove_rule"><input type="hidden" name="rule_id" value="{{ r.id }}"><button class="btn btn-sm btn-link text-danger p-0" title="Togli dalla struttura"><i class="bi bi-x-lg"></i></button></form></td></tr>
+    {% else %}<tr><td colspan="8" class="text-muted small">Nessuna regola propria.</td></tr>{% endfor %}</tbody></table>
+    <form method="post" class="d-flex gap-2 align-items-start">{{ csrf() }}<input type="hidden" name="action" value="add_rules">
+      <select name="rule_ids" class="form-select form-select-sm" multiple size="6" style="max-width:520px">
+        {% for r in available if r not in st.rule_ids %}<option value="{{ r.id }}">{{ r.sequence }} · {{ r.code }} · {{ r.name }}</option>{% endfor %}
+      </select>
+      <div><button class="btn btn-sm btn-outline-primary">Aggiungi le regole selezionate</button>
+        <div class="small text-muted mt-1">Ctrl/⌘ per selezionarne più di una.<br>Oppure <a href="{{ url_for('main.rule', struct=st.id) }}">crea una nuova regola</a>.</div></div>
+    </form>
+  </div>
+  <div class="tab-pane fade" id="all">
+    <p class="small text-muted">Regole della struttura e dei padri, comprese le regole figlie, ordinate per sequenza: è esattamente l'elenco che il calcolo esegue (<code>get_all_rules</code>).</p>
+    <table class="table table-sm"><thead><tr><th>Seq.</th><th>Codice</th><th>Nome</th><th>Da</th></tr></thead>
+    <tbody>{% for r in all_rules %}<tr><td>{{ r.sequence }}</td><td class="code"><a href="{{ url_for('main.rule', rule_id=r.id) }}">{{ r.code }}</a></td><td>{% if r.parent_rule %}↳ {% endif %}{{ r.name }}</td>
+      <td class="small">{% if r in st.rule_ids %}questa struttura{% elif r.parent_rule %}figlia di {{ r.parent_rule.code }}{% else %}{{ r.struct_ids|map(attribute='code')|join(', ') }}{% endif %}</td></tr>{% endfor %}</tbody></table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

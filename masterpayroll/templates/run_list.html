@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Gruppi buste paga{% endblock %}
+{% block controlpanel %}
+{% call cp([("Gruppi buste paga", None)], "hr.payslip.run") %}<a href="{{ url_for('main.run_new') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuovo</a>{% endcall %}
+{% endblock %}
+{% block content %}
+<div class="o-filters mb-2 btn-group btn-group-sm">
+  <a class="btn btn-outline-secondary {{ 'active' if not stato }}" href="{{ url_for('main.runs') }}">Tutti</a>
+  <a class="btn btn-outline-secondary {{ 'active' if stato == 'draft' }}" href="?state=draft">Bozza</a>
+  <a class="btn btn-outline-secondary {{ 'active' if stato == 'close' }}" href="?state=close">Completati</a>
+</div>
+<div class="o-list table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Nome</th><th>Dalla data</th><th>Alla data</th><th>Struttura</th><th class="num">Buste paga</th><th>Nota di credito</th><th>Stato</th></tr></thead>
+  <tbody>{% for r in rows %}
+    <tr class="click" data-href="{{ url_for('main.run', run_id=r.id) }}"><td><strong>{{ r.name }}</strong></td><td>{{ r.date_start|data }}</td><td>{{ r.date_end|data }}</td>
+      <td class="small">{{ r.struct.code if r.struct }}</td><td class="num">{{ r.slip_ids|length }}</td><td>{{ 'Sì' if r.credit_note }}</td>
+      <td><span class="badge st-{{ r.state }}">{{ 'Bozza' if r.state == 'draft' else 'Chiuso' }}</span></td></tr>
+  {% else %}<tr><td colspan="7" class="text-muted p-3">Nessun gruppo.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

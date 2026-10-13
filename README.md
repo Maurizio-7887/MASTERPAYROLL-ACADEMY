@@ -1,86 +1,75 @@
 # MasterPayroll Academy
 
-Gestionale paghe **didattico** per le lezioni di elaborazione paghe (UF4 e corsi affini).
-Ogni allievo entra con il proprio login e lavora su una copia tutta sua dell'azienda fittizia
-**Ferro & Transenne Srl** (metalmeccanica, CCNL Metalmeccanica Industria): 8 dipendenti,
-contratti, un mese d'esempio già elaborato, esercitazioni guidate.
+Replica didattica **in Flask** del modulo **Payroll di Odoo** (OCA/payroll 19.0), con localizzazione
+italiana, per le lezioni di informatica applicata alle paghe. Ogni allievo entra con il suo login e
+lavora sulla sua copia dell'azienda fittizia **Ferro & Transenne Srl** (metalmeccanica): 8 dipendenti,
+familiari a carico, contratti, orari, assenze, festività e il mese di settembre 2026 già elaborato.
 
-> ⚠️ **Ambiente formativo — dati simulati.** Parametri contributivi e fiscali, minimi CCNL e
-> codici tributo sono indicativi e servono per imparare. Non usare per paghe reali.
+> ⚠️ **Ambiente formativo, dati simulati.** Aliquote, minimi CCNL, detrazioni e codici tributo sono
+> indicativi e servono per imparare. Non usare per paghe reali.
 
-## Cosa si fa in aula
+## Corrispondenza con Odoo
 
-| Area | Cosa insegna |
-|---|---|
-| **Dipendenti e contratti** | livelli CCNL, minimo, superminimo, scatti, part-time, tempo determinato, apprendistato |
-| **Elaborazioni** | il mese paghe: griglia delle variabili (straordinari, assenze, ferie, ROL, premi, rimborsi, anticipi), calcolo, conferma |
-| **Cedolino** | lordo → contributi INPS → imponibile fiscale → IRPEF lorda → detrazioni → cuneo fiscale → addizionali → netto; costo aziendale; ferie/ROL; stampa con filigrana |
-| **Strutture e regole** | il motore a regole: ogni voce è una regola con condizione e formula, modificabile dagli allievi |
-| **Tabelle** | aliquote INPS, scaglioni IRPEF, minimi CCNL, categorie: si cambiano e si misura l'effetto |
-| **Versamenti F24** | codici tributo 1001 / 3802 / 3848, crediti da compensare, contributi INPS, scadenza del 16 |
-| **Tredicesima** | ratei, tassazione ad aliquota marginale senza detrazioni |
-| **Area docente** | creazione allievi in blocco, ore reali di attività, consegne delle esercitazioni, accesso all'ambiente di ogni allievo, ripristino, report CSV |
+| Odoo (modello) | MasterPayroll | Cosa c'è |
+|---|---|---|
+| `hr.payslip` | Buste paga dipendente | stati Bozza → In attesa → Completata / Rifiutata, numerazione `SLIP/001`, Calcola scheda, Conferma, Storno (nota di credito), Annulla, Imposta a bozza, Riestrai dati, righe figlie nascoste, chatter con tracciamento |
+| `hr.payslip.worked_days` | Giorni lavorati | calcolati dall'orario di lavoro, dalle festività (`GLOBAL`) e dalle assenze approvate; negativi o positivi secondo l'impostazione |
+| `hr.payslip.input` / `hr.rule.input` | Apporti | creati dagli apporti delle regole della struttura |
+| `hr.payslip.line` | Righe busta paga | copia della regola + quantità, tasso, importo, totale; analisi a tabella pivot |
+| `hr.payslip.run` + wizard `hr.payslip.employees` | Gruppi buste paga | Genera buste paga, Chiudi lotto, struttura del gruppo (es. tredicesima), note di credito |
+| wizard `hr.payslip.change.state` | Cambia stato | azione multipla sulle buste selezionate, con le stesse regole di Odoo |
+| `hr.salary.rule` | Regole stipendio | condizione *Sempre vera / Intervallo / Espressione Python*, importo *Fisso / Percentuale / Codice Python*, quantità, regole padre/figlie, registro, apporti |
+| `hr.salary.rule.category` | Categorie | gerarchia: i totali delle figlie si sommano nei padri |
+| `hr.payroll.structure` | Strutture stipendio | struttura padre ereditata, regole condivise (molti-a-molti) |
+| `hr.contribution.register` + report | Registri contributi | report PDF "Righe busta paga per registro contributi" |
+| `res.config.settings` | Impostazioni | permessi positivi, annullare buste confermate, conferma senza ricalcolo, modifica righe, codice/categoria obbligatori |
+| `report_payslip`, `report_payslipdetails` | Stampa | PDF (ReportLab) con filigrana "ambiente formativo" |
+| `mail_template_hr_payslip` | Invia per email | posta in uscita simulata (o SMTP reale se configurato) |
+| `hr.employee`, `hr.version`, `resource.calendar`, `hr.leave` | Dipendenti, Contratti, Orari, Assenze, Festività | le dipendenze del modulo |
 
-## Il motore a regole
+Il motore (`masterpayroll/payroll.py`) usa gli stessi nomi dei metodi Odoo (`compute_sheet`,
+`get_lines_dict`, `_satisfy_condition`, `_compute_rule`, `get_worked_day_lines`, `refund_sheet`…) e nelle
+regole sono disponibili le stesse variabili: `payslip`, `employee`, `contract`, `categories`, `rules`,
+`result_rules`, `worked_days`, `inputs`, `payroll`, `payslips`, `current_contract`, `tools`, più il codice di
+ogni regola già calcolata. Come in Odoo le **trattenute sono negative**. I test di Odoo
+(`payroll/tests`) sono stati portati in `tests/test_odoo_port.py`.
 
-Il modello è quello del modulo **Payroll di OCA/Odoo** (strutture → regole → categorie), riscritto da zero in Flask
-per essere leggibile in aula. Le regole sono eseguite in ordine di sequenza; ogni risultato è disponibile alle regole
-successive:
+## Localizzazione italiana
 
-```
-categories.BASE          totale della categoria fin qui
-rules.IMP_FISC           risultato di una regola precedente
-contract.minimo          dati del contratto
-inputs.STR25             variabili del mese
-param.INPS_DIP           parametri della pagina Tabelle
-irpef_annua(reddito)     funzioni fiscali (vedi Guida nell'app)
-```
+* Strutture **CCNL Metalmeccanico Industria**: `BASE` → `IT_ORD` (mensile, eredita dalla BASE) e `IT13` (tredicesima).
+* Regole: minimo, superminimo, scatti, paga oraria, straordinari 25/50%, permessi non retribuiti dai giorni lavorati,
+  INPS 9,19% (+1% oltre la 1ª fascia come regola figlia), IRPEF a scaglioni, detrazioni lavoro dipendente e
+  **familiari a carico** (coniuge, figli 21-30 anni, altri), cuneo fiscale, trattamento integrativo, addizionali,
+  trasferte esenti, rimborsi, anticipi, contributi azienda, INAIL, TFR, costo aziendale; tredicesima con ratei e aliquota marginale.
+* `tools.*` (estensione di `_get_tools_dict`) e `payroll.*` (estensione di `get_payroll_dict`): funzioni fiscali, parametri, scaglioni.
+* **Versamenti F24** dai registri contributi (1001, 3802, 3848, crediti 1655 e cuneo, INPS), festività italiane con Pasqua calcolata.
 
-Le formule sono valutate in modo sicuro (`masterpayroll/safe_eval.py`): solo aritmetica, condizioni e le funzioni
-della guida; niente import, accesso a file o attributi interni.
+## Academy
+
+Area docente: creazione della classe in blocco con password, **ore reali di attività**, consegne delle
+esercitazioni (10 già pronte, dal primo cedolino alla tredicesima), accesso all'ambiente di ogni allievo,
+ripristino, report CSV. Le formule scritte dagli allievi passano da un valutatore sicuro
+(`masterpayroll/safe_eval.py`): niente import, accesso al database o ai dati degli altri.
 
 ## Avvio in locale
 
 ```bash
 pip install -r requirements.txt
 ADMIN_PASSWORD=una-password python app.py      # http://localhost:5000  utente: docente
-python -m pytest                               # test del motore e dei flussi
+python -m pytest                               # 33 test
 ```
-
-Senza `DATABASE_URL` usa SQLite (`masterpayroll.db`).
 
 ## Deploy su Railway
 
-1. Nuovo progetto → *Deploy from GitHub repo* → questo repository.
-2. Aggiungi un database **PostgreSQL** al progetto (crea `DATABASE_URL`).
-3. Variabili del servizio:
-   - `DATABASE_URL` → riferimento al Postgres
-   - `SECRET_KEY` → stringa casuale lunga
-   - `ADMIN_USERNAME` → (facoltativo, default `docente`)
-   - `ADMIN_PASSWORD` → password del docente
-4. *Generate domain*. Avvio con `gunicorn` (vedi `railway.json` / `Procfile`).
-
-Le tabelle si creano da sole al primo avvio; l'ambiente di ogni utente viene popolato al primo accesso.
-
-## Struttura del codice
-
-```
-app.py                      avvio
-masterpayroll/
-  __init__.py               app factory, CSRF, tracciamento attività, utente docente
-  models.py                 utenti, ambienti, anagrafiche, regole, cedolini
-  engine.py                 calcolo del cedolino
-  safe_eval.py              valutatore sicuro delle formule
-  fiscale.py                IRPEF, detrazioni, cuneo fiscale, trattamento integrativo
-  seed.py                   Ferro & Transenne Srl, regole, esercitazioni
-  views.py / docente.py / auth.py
-  templates/ static/        interfaccia (Bootstrap incluso nel repo, nessuna CDN)
-tests/
-```
+1. Nuovo progetto → *Deploy from GitHub repo* → questo repository; aggiungi un database **PostgreSQL**.
+2. Variabili: `DATABASE_URL` (riferimento al Postgres), `SECRET_KEY`, `ADMIN_PASSWORD`
+   (facoltative: `ADMIN_USERNAME`, e `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` per email reali).
+3. *Generate domain*. Avvio con `gunicorn` (`railway.json` / `Procfile`). Le tabelle si creano al primo avvio.
 
 ## Crediti
 
-Modello concettuale ispirato a [OCA/payroll](https://github.com/OCA/payroll) (LGPL-3).
-Interfaccia con [Bootstrap](https://getbootstrap.com) e [Bootstrap Icons](https://icons.getbootstrap.com) (MIT).
+Modello e logica ricalcano [OCA/payroll](https://github.com/OCA/payroll) (LGPL-3) di Odoo SA e Odoo
+Community Association: questa è una riscrittura indipendente a scopo didattico. Interfaccia con
+Bootstrap e Bootstrap Icons (MIT), PDF con ReportLab (BSD).
 
 © Maurizio Gustinicchi Consulting — materiale didattico.

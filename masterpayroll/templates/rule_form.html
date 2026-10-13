@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, row %}
+{% block title %}{{ r.code or r.name or 'Nuova regola' }}{% endblock %}
+{% block controlpanel %}{{ cp([("Regole stipendio", url_for('main.rules')), ((r.code ~ ' · ' ~ r.name) if real else 'Nuovo', None)], "hr.salary.rule") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+<input type="hidden" name="tab" id="tabfield" value="{{ tab }}">
+<input type="hidden" name="struct_ids_present" value="1">
+<div class="o-form-header"><div class="d-flex gap-1">
+  <button class="btn btn-sm btn-primary" name="action" value="save">Salva</button>
+  {% if real %}<button class="btn btn-sm btn-outline-secondary" name="action" value="copy">Duplica</button>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.rule', parent=real.id) }}">Nuova regola figlia</a>
+  <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare la regola?"><i class="bi bi-trash"></i></button>{% endif %}
+</div></div>
+<div class="o-sheet">
+  <div class="row">
+    <div class="col-lg-8">
+      <label class="small text-muted">Nome</label>
+      <input name="name" value="{{ r.name or '' }}" class="form-control mb-1" style="font-size:1.25rem;font-weight:600" required>
+    </div>
+    <div class="col-lg-4">
+      <label class="small text-muted">Codice <i class="bi bi-question-circle" title="Il codice si usa nelle altre regole (è anche una variabile). Distingue maiuscole e minuscole."></i></label>
+      <input name="code" value="{{ r.code or '' }}" class="form-control code mb-1" style="font-size:1.05rem">
+    </div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-lg-6">
+      {% call row("Categoria") %}<select name="category_id" class="form-select form-select-sm"><option value=""></option>{% for c in cats %}<option value="{{ c.id }}" {{ 'selected' if r.category_id == c.id }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}</select>{% endcall %}
+      {% call row("Sequenza", "Ordine di calcolo") %}<input name="sequence" value="{{ r.sequence }}" type="number" class="form-control form-control-sm">{% endcall %}
+      {% call row("Regola padre", "Una regola figlia viene valutata solo se anche la condizione della regola padre è vera") %}<select name="parent_rule_id" class="form-select form-select-sm"><option value=""></option>{% for p in parents %}<option value="{{ p.id }}" {{ 'selected' if r.parent_rule_id == p.id }}>{{ p.code }} · {{ p.name }}</option>{% endfor %}</select>{% endcall %}
+    </div>
+    <div class="col-lg-6">
+      {% call row("Attivo") %}<input type="checkbox" class="form-check-input" name="active" {{ 'checked' if r.active }}>{% endcall %}
+      {% call row("Presente nella busta paga") %}<input type="checkbox" class="form-check-input" name="appears_on_payslip" {{ 'checked' if r.appears_on_payslip }}>{% endcall %}
+      {% call row("Registro contributi", "Terzo coinvolto nel pagamento (INPS, Erario…)") %}<select name="register_id" class="form-select form-select-sm"><option value=""></option>{% for g_ in regs %}<option value="{{ g_.id }}" {{ 'selected' if r.register_id == g_.id }}>{{ g_.name }}</option>{% endfor %}</select>{% endcall %}
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs o-notebook mt-3">
+    {% for k, l in [('general','Calcolo'),('conditions','Condizioni'),('children','Regole figlio'),('inputs','Apporti'),('structures','Strutture'),('note','Descrizione'),('help','Aiuto')] %}
+    <li class="nav-item"><button type="button" class="nav-link {{ 'active' if tab == k }}" data-bs-toggle="tab" data-bs-target="#t-{{ k }}" data-tab="{{ k }}">{{ l }}</button></li>
+    {% endfor %}
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade {{ 'show active' if tab == 'general' }}" id="t-general">
+      <div class="row"><div class="col-lg-7">
+        {% call row("Tipo importo") %}<select name="amount_select" id="amount_select" class="form-select form-select-sm">
+          {% for k, l in [('fix','Importo fisso'),('percentage','Percentuale (%)'),('code','Codice Python')] %}<option value="{{ k }}" {{ 'selected' if r.amount_select == k }}>{{ l }}</option>{% endfor %}</select>{% endcall %}
+        <div data-amount="fix percentage">{% call row("Quantità", "Espressione: es. worked_days.WORK100.number_of_days") %}<input name="quantity" value="{{ r.quantity or '1.0' }}" class="form-control form-control-sm code">{% endcall %}</div>
+        <div data-amount="fix">{% call row("Importo fisso") %}<input name="amount_fix" value="{{ r.amount_fix|inval }}" class="form-control form-control-sm">{% endcall %}</div>
+        <div data-amount="percentage">
+          {% call row("Percentuale (%)", "Es. 50 per il 50%. Negativa per una trattenuta.") %}<input name="amount_percentage" value="{{ r.amount_percentage|inval }}" class="form-control form-control-sm">{% endcall %}
+          {% call row("Percentuale basata su", "Espressione: es. contract.wage oppure il codice di una regola") %}<input name="amount_percentage_base" value="{{ r.amount_percentage_base or '' }}" class="form-control form-control-sm code">{% endcall %}
+        </div>
+      </div>
+      <div class="col-lg-5 small text-muted">
+        <div class="border rounded p-2 bg-light">
+          <strong>Come si calcola il totale della riga</strong><br>
+          totale = quantità × importo × tasso / 100<br>
+          · <em>Importo fisso</em>: tasso = 100<br>
+          · <em>Percentuale</em>: importo = base, tasso = percentuale<br>
+          · <em>Codice Python</em>: importo = <code>result</code>, quantità = <code>result_qty</code>, tasso = <code>result_rate</code>, nome = <code>result_name</code>
+        </div>
+      </div></div>
+      <div data-amount="code" class="mt-2">
+        <label class="small fw-semibold">Codice Python</label>
+        <textarea name="amount_python_compute" class="form-control code" rows="9" spellcheck="false">{{ r.amount_python_compute or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'conditions' }}" id="t-conditions">
+      <div class="row"><div class="col-lg-7">
+        {% call row("Condizione basata su") %}<select name="condition_select" id="condition_select" class="form-select form-select-sm">
+          {% for k, l in [('none','Sempre vera'),('range','Intervallo'),('python','Espressione Python')] %}<option value="{{ k }}" {{ 'selected' if r.condition_select == k }}>{{ l }}</option>{% endfor %}</select>{% endcall %}
+        <div data-cond="range">
+          {% call row("Intervallo basato su", "Espressione numerica: la regola si applica se minimo ≤ valore ≤ massimo") %}<input name="condition_range" value="{{ r.condition_range or '' }}" class="form-control form-control-sm code">{% endcall %}
+          {% call row("Intervallo minimo") %}<input name="condition_range_min" value="{{ r.condition_range_min|inval }}" class="form-control form-control-sm">{% endcall %}
+          {% call row("Intervallo massimo") %}<input name="condition_range_max" value="{{ r.condition_range_max|inval }}" class="form-control form-control-sm">{% endcall %}
+        </div>
+      </div></div>
+      <div data-cond="python" class="mt-2">
+        <label class="small fw-semibold">Condizione Python <span class="text-muted fw-normal">(la regola si applica se <code>result</code> è vero)</span></label>
+        <textarea name="condition_python" class="form-control code" rows="7" spellcheck="false">{{ r.condition_python or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'children' }}" id="t-children">
+      {% if real %}
+      <p class="small text-muted">Le regole figlie entrano nel calcolo insieme alla regola padre (anche se non sono nella struttura) e vengono saltate se la regola padre non si applica.</p>
+      <table class="table table-sm"><thead><tr><th>Seq.</th><th>Codice</th><th>Nome</th><th>Categoria</th></tr></thead>
+      <tbody>{% for ch in real.child_ids|sort(attribute='sequence') %}<tr class="click" data-href="{{ url_for('main.rule', rule_id=ch.id) }}"><td>{{ ch.sequence }}</td><td class="code">{{ ch.code }}</td><td>{{ ch.name }}</td><td class="small">{{ ch.category.code if ch.category }}</td></tr>
+      {% else %}<tr><td colspan="4" class="text-muted small">Nessuna regola figlia.</td></tr>{% endfor %}</tbody></table>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.rule', parent=real.id) }}">Aggiungi regola figlia</a>
+      {% else %}<p class="text-muted small">Salva la regola per aggiungere regole figlie.</p>{% endif %}
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'inputs' }}" id="t-inputs">
+      <p class="small text-muted">Gli apporti (<span class="o-model">hr.rule.input</span>) diventano righe da compilare nella busta paga; nella regola si leggono con <code>inputs.CODICE.amount</code>.</p>
+      <table class="table table-sm" style="max-width:720px"><thead><tr><th>Codice</th><th>Descrizione</th><th></th></tr></thead><tbody>
+      {% for ri in (real.input_ids if real else []) %}<tr><td><input name="ri_code_{{ ri.id }}" value="{{ ri.code }}" class="form-control form-control-sm code"></td><td><input name="ri_name_{{ ri.id }}" value="{{ ri.name }}" class="form-control form-control-sm"></td><td><input type="checkbox" class="form-check-input" name="ri_del_{{ ri.id }}"> <i class="bi bi-trash text-muted small"></i></td></tr>{% endfor %}
+      <tr class="table-light"><td><input name="ri_new_code" class="form-control form-control-sm code" placeholder="CODICE"></td><td><input name="ri_new_name" class="form-control form-control-sm" placeholder="Aggiungi apporto…"></td><td></td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'structures' }}" id="t-structures">
+      <p class="small text-muted">Strutture che contengono questa regola (relazione molti-a-molti, come <code>rule_ids</code> di <code>hr.payroll.structure</code>).</p>
+      {% for s in structs %}<div class="form-check"><input class="form-check-input" type="checkbox" name="struct_ids" value="{{ s.id }}" id="s{{ s.id }}" {{ 'checked' if s.id in sel_structs }}><label class="form-check-label" for="s{{ s.id }}"><span class="code">{{ s.code }}</span> · {{ s.name }}</label></div>{% endfor %}
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'note' }}" id="t-note">
+      <textarea name="note" class="form-control form-control-sm" rows="4" placeholder="Descrizione della regola">{{ r.note or '' }}</textarea>
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'help' }}" id="t-help">
+      <div class="row"><div class="col-lg-7">
+        <h6>Variabili disponibili</h6>
+        <table class="table table-sm small">
+          <tr><td><code>payslip</code></td><td>la busta paga (date_from, date_to, credit_note…)</td></tr>
+          <tr><td><code>employee</code></td><td>il dipendente (name, department, qualifica, familiari…)</td></tr>
+          <tr><td><code>contract</code></td><td>il contratto (wage, superminimo, scatti_n, part_time, mensilita, retribuzione_mensile, ral…)</td></tr>
+          <tr><td><code>rules</code></td><td>le regole già calcolate: <code>rules.INPS_DIP.amount_percentage</code></td></tr>
+          <tr><td><code>categories</code></td><td>somma per categoria fin qui: <code>categories.BASIC</code></td></tr>
+          <tr><td><code>worked_days</code></td><td>giorni lavorati: <code>worked_days.WORK100.number_of_days</code></td></tr>
+          <tr><td><code>inputs</code></td><td>apporti della busta: <code>inputs.STR25.amount</code></td></tr>
+          <tr><td><code>payroll</code></td><td>valori vari: <code>payroll.contracts.count</code> e i parametri della pagina Tabelle (<code>payroll.INAIL_TASSO</code>)</td></tr>
+          <tr><td><code>current_contract</code></td><td>valori calcolati dal contratto corrente</td></tr>
+          <tr><td><code>result_rules</code></td><td>quantità, tasso, importo e totale delle regole calcolate: <code>result_rules.BASIC.total</code></td></tr>
+          <tr><td><code>payslips</code></td><td><code>payslips.sum('NET', data_da, data_a)</code>: somma nelle buste confermate</td></tr>
+          <tr><td><code>tools</code></td><td>strumenti: <code>tools.math</code> e funzioni fiscali (a destra)</td></tr>
+          <tr><td><code>CODICE</code></td><td>il totale di ogni regola già calcolata è anche una variabile: <code>GROSS</code>, <code>IMP_PREV</code>…</td></tr>
+        </table>
+        <h6>Variabili da impostare (Codice Python)</h6>
+        <p class="small"><code>result</code> importo · <code>result_qty</code> quantità · <code>result_rate</code> tasso % · <code>result_name</code> nome della riga</p>
+        <p class="small text-muted">Come in Odoo, un oggetto che non esiste vale 0: per questo si scrive <code>worked_days.PNR and worked_days.PNR.number_of_hours</code>.</p>
+      </div><div class="col-lg-5">
+        <h6>Funzioni (localizzazione italiana)</h6>
+        <table class="table table-sm small">{% for f, d in helpers %}<tr><td><code>{{ f }}</code></td><td>{{ d }}</td></tr>{% endfor %}</table>
+      </div></div>
+    </div>
+  </div>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+function syncVis() {
+  var a = document.getElementById('amount_select').value, c = document.getElementById('condition_select').value;
+  document.querySelectorAll('[data-amount]').forEach(function (el) { el.style.display = el.dataset.amount.split(' ').includes(a) ? '' : 'none'; });
+  document.querySelectorAll('[data-cond]').forEach(function (el) { el.style.display = el.dataset.cond === c ? '' : 'none'; });
+}
+document.getElementById('amount_select').addEventListener('change', syncVis);
+document.getElementById('condition_select').addEventListener('change', syncVis);
+syncVis();
+document.querySelectorAll('[data-tab]').forEach(function (b) {
+  b.addEventListener('shown.bs.tab', function () { document.getElementById('tabfield').value = b.dataset.tab; });
+});
+</script>
+{% endblock %}

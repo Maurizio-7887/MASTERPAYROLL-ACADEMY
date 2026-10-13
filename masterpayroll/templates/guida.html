@@ -1,54 +1,58 @@
 {% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Guida alle regole{% endblock %}
+{% block controlpanel %}{{ cp([("Guida: come funziona Odoo Payroll", None)]) }}{% endblock %}
 {% block content %}
-<h1 class="h4 page-title">Guida alle formule</h1>
 <div class="row g-3">
 <div class="col-lg-7">
-  <div class="card mb-3"><div class="card-header">Come lavora il motore di calcolo</div><div class="card-body">
+  <div class="card mb-3"><div class="card-header">Il ciclo di una busta paga in Odoo</div><div class="card-body small">
     <ol class="mb-0">
-      <li>Si prende la <strong>struttura retributiva</strong> del cedolino (dal contratto, o la tredicesima).</li>
-      <li>Le regole si eseguono in ordine di <strong>sequenza</strong>.</li>
-      <li>Se la <strong>condizione</strong> è falsa la regola viene saltata; se è vuota vale sempre.</li>
-      <li>La <strong>formula</strong> calcola l'importo, arrotondato al centesimo.</li>
-      <li>L'importo è salvato in <code>rules.CODICE</code> e sommato a <code>categories.CATEGORIA</code>: le regole successive lo possono usare.</li>
-      <li>Il netto è una regola come le altre: competenze meno trattenute.</li>
-    </ol>
+      <li><strong>Dipendente e contratto</strong> (<code>hr.employee</code>, <code>hr.version</code>): il contratto in corso indica paga base, orario di lavoro e <strong>struttura stipendio</strong>.</li>
+      <li><strong>Busta paga</strong> (<code>hr.payslip</code>) in <em>Bozza</em>: dal periodo si calcolano i <strong>giorni lavorati</strong> (orario + festività + assenze approvate) e si creano gli <strong>apporti</strong> previsti dalle regole.</li>
+      <li><strong>Calcola scheda</strong>: si prendono le regole della struttura e dei suoi <em>padri</em> (con le regole <em>figlie</em>), ordinate per sequenza. Per ognuna: se la <strong>condizione</strong> è vera si calcola l'<strong>importo</strong> → riga della busta. La busta passa <em>In attesa</em> e riceve il numero SLIP/xxx.</li>
+      <li><strong>Conferma</strong> → <em>Completata</em>. Da qui si può solo stornare (<strong>Storno</strong> = nota di credito) o, se abilitato, annullare.</li>
+      <li><strong>Gruppi buste paga</strong> (<code>hr.payslip.run</code>): generano le buste di tutti i dipendenti del periodo.</li>
+      <li><strong>Registri contributi</strong>: ogni riga può essere collegata a un registro (INPS, Erario…) per i report e per l'F24.</li>
+    </ol></div></div>
+  <div class="card mb-3"><div class="card-header">Condizioni e importi</div><div class="card-body small">
+    <table class="table table-sm mb-2"><tr><th>Condizione</th><th></th></tr>
+      <tr><td>Sempre vera</td><td>la regola si applica sempre</td></tr>
+      <tr><td>Intervallo</td><td>si applica se <em>minimo ≤ espressione ≤ massimo</em> (es. <code>contract.scatti_n</code> tra 1 e 99)</td></tr>
+      <tr><td>Espressione Python</td><td>codice che imposta <code>result</code> a vero/falso</td></tr></table>
+    <table class="table table-sm mb-0"><tr><th>Importo</th><th>Totale della riga</th></tr>
+      <tr><td>Importo fisso</td><td>quantità × importo fisso</td></tr>
+      <tr><td>Percentuale</td><td>quantità × base × percentuale / 100 (percentuale negativa = trattenuta)</td></tr>
+      <tr><td>Codice Python</td><td><code>result_qty</code> × <code>result</code> × <code>result_rate</code> / 100</td></tr></table>
   </div></div>
-  <div class="card mb-3"><div class="card-header">Cosa puoi usare nelle formule</div>
-    <table class="table table-sm mb-0">
-      <tr><td><code>contract.minimo</code> · <code>superminimo</code> · <code>scatti_n</code> · <code>scatto_importo</code></td><td>Dati economici del contratto</td></tr>
-      <tr><td><code>contract.part_time</code> · <code>ore_settimanali</code> · <code>divisore</code></td><td>Part-time in %, orario, divisore orario (173)</td></tr>
-      <tr><td><code>contract.add_reg_rata</code> · <code>add_com_rata</code> · <code>livello</code> · <code>tipo</code></td><td>Rate addizionali, livello, tipo contratto</td></tr>
-      <tr><td><code>retribuzione_mensile</code></td><td>(minimo + superminimo + scatti) × part-time</td></tr>
-      <tr><td><code>reddito_presunto_annuo</code></td><td>Retribuzione × mensilità, meno contributi</td></tr>
-      <tr><td><code>reddito_ordinario_annuo</code></td><td>Come sopra ma su 12 mesi (serve alla tredicesima)</td></tr>
-      <tr><td><code>employee.qualifica</code> · <code>reparto</code> · <code>matricola</code></td><td>Dati del dipendente (testo)</td></tr>
-      <tr><td><code>giorni</code> · <code>ore</code> · <code>mese</code> · <code>anno</code> · <code>tipo</code></td><td>Dati del cedolino</td></tr>
-      <tr><td><code>inputs.CODICE</code></td><td>Variabili del mese (vedi a destra); 0 se non inserite</td></tr>
-      <tr><td><code>param.CODICE</code></td><td>Parametri della pagina Tabelle</td></tr>
-      <tr><td><code>categories.CODICE</code></td><td>Totale della categoria, fino a questa regola</td></tr>
-      <tr><td><code>rules.CODICE</code></td><td>Risultato di una regola già eseguita</td></tr>
-    </table></div>
-  <div class="card mb-3"><div class="card-header">Funzioni</div>
-    <table class="table table-sm mb-0">{% for f, d in helpers %}<tr><td><code>{{ f }}</code></td><td>{{ d }}</td></tr>{% endfor %}</table></div>
-  <div class="card"><div class="card-header">Esempi</div><div class="card-body">
-    <p class="mb-1">Indennità di 3 € per ogni giorno lavorato, solo per gli operai:</p>
-    <pre class="formula bg-light p-2">condizione: employee.qualifica == 'operaio'
-formula:    giorni * 3</pre>
-    <p class="mb-1">Formula su più righe (termina sempre con <code>result =</code>):</p>
-    <pre class="formula bg-light p-2">oraria = categories.BASE / contract.divisore
-result = inputs.STR25 * oraria * 1.25</pre>
-    <p class="mb-1">Condizione con più criteri:</p>
-    <pre class="formula bg-light p-2 mb-0">rules.REDD_ANNUO &lt;= 15000 and contract.tipo != 'apprendistato'</pre>
+  <div class="card mb-3"><div class="card-header">Esempi</div><div class="card-body small">
+    <p class="mb-1">Indennità di 3 € per ogni giorno lavorato (importo fisso, quantità):</p>
+    <pre class="formula bg-light p-2">quantità:      worked_days.WORK100 and worked_days.WORK100.number_of_days
+importo fisso: 3</pre>
+    <p class="mb-1">Contributo del 9,19% (percentuale negativa):</p>
+    <pre class="formula bg-light p-2">percentuale: -9.19      basata su: IMP_PREV</pre>
+    <p class="mb-1">Codice Python su più righe:</p>
+    <pre class="formula bg-light p-2 mb-0">base = categories.BASIC + categories.ALW
+result_qty = inputs.STR25.amount
+result_rate = 125
+result = arrotonda(base / contract.divisore_orario, 5)</pre>
   </div></div>
+  <div class="card"><div class="card-header">Convenzioni di Odoo da ricordare</div><div class="card-body small">
+    <ul class="mb-0">
+      <li>Le <strong>trattenute sono negative</strong> e il netto è la somma delle categorie (<code>BASIC + ALW + ESENTE + DED</code>).</li>
+      <li>Un valore che non esiste vale <strong>0</strong>: <code>worked_days.PNR</code> è 0 se non ci sono permessi non retribuiti, quindi si scrive <code>worked_days.PNR and worked_days.PNR.number_of_hours</code>.</li>
+      <li>Il codice di una regola è una variabile per le regole successive (<code>GROSS</code>, <code>IMP_PREV</code>); se la regola non è stata calcolata la variabile non esiste: meglio usare le categorie.</li>
+      <li>Le assenze sono di default <strong>negative</strong> nei giorni lavorati (Impostazioni → "Permessi con valore positivo").</li>
+    </ul></div></div>
 </div>
 <div class="col-lg-5">
-  <div class="card mb-3"><div class="card-header">Variabili del mese (<code>inputs.</code>)</div>
-    <table class="table table-sm mb-0">{% for c, l, u in inputs %}<tr><td><code>{{ c }}</code></td><td>{{ l }}</td><td class="small text-muted">{{ u }}</td></tr>{% endfor %}</table></div>
+  <div class="card mb-3"><div class="card-header">Funzioni <code>tools</code> (localizzazione italiana)</div>
+    <table class="table table-sm mb-0 small">{% for f, d in helpers %}<tr><td><code>{{ f }}</code></td><td>{{ d }}</td></tr>{% endfor %}</table></div>
   <div class="card mb-3"><div class="card-header">Categorie (<code>categories.</code>)</div>
-    <table class="table table-sm mb-0">{% for c in cats %}<tr><td><code>{{ c.codice }}</code></td><td>{{ c.nome }}</td><td class="small text-muted">{{ c.tipo }}</td></tr>{% endfor %}</table></div>
-  <div class="card"><div class="card-header">Parametri (<code>param.</code>)</div>
-    <table class="table table-sm mb-0">{% for p in params %}<tr><td><code>{{ p.codice }}</code></td><td class="num">{{ p.valore|num(2) }} {{ p.unita }}</td></tr>{% endfor %}</table></div>
+    <table class="table table-sm mb-0 small">{% for c in cats %}<tr><td class="code">{{ c.code }}</td><td>{{ c.name }}</td><td class="text-muted">{{ c.parent.code if c.parent }}</td></tr>{% endfor %}</table></div>
+  <div class="card"><div class="card-header">Parametri (<code>payroll.</code>)</div>
+    <table class="table table-sm mb-0 small">{% for p in params %}<tr><td class="code">{{ p.codice }}</td><td class="num">{{ p.valore|num(2) }} {{ p.unita }}</td></tr>{% endfor %}
+      <tr><td class="code">ratei_13</td><td class="text-muted">mesi di tredicesima maturati</td></tr><tr><td class="code">reddito_ordinario_annuo</td><td class="text-muted">reddito dei 12 mesi al netto INPS</td></tr></table></div>
 </div>
 </div>
-<p class="small text-muted mt-3">Il modello a strutture, categorie e regole è ispirato al modulo Payroll della Odoo Community Association (OCA), rilasciato con licenza LGPL-3. MasterPayroll Academy è una riscrittura indipendente a scopo didattico.</p>
+<p class="small text-muted mt-3">Modello dati, logica e terminologia ricalcano il modulo <strong>Payroll</strong> della Odoo Community Association (OCA/payroll 19.0, licenza LGPL-3). MasterPayroll Academy è una riscrittura indipendente in Flask a scopo didattico.</p>
 {% endblock %}

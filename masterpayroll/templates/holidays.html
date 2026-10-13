@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp %}
+{% block title %}Festività{% endblock %}
+{% block controlpanel %}
+{% call cp([("Festività " ~ anno, None)], "resource.calendar.leaves") %}
+<div class="btn-group btn-group-sm"><a class="btn btn-outline-secondary" href="?anno={{ anno - 1 }}">‹ {{ anno - 1 }}</a><a class="btn btn-outline-secondary" href="?anno={{ anno + 1 }}">{{ anno + 1 }} ›</a></div>
+{% endcall %}
+{% endblock %}
+{% block content %}
+<div class="row g-3"><div class="col-lg-7">
+<div class="o-list"><table class="table table-sm align-middle">
+  <thead><tr><th>Data</th><th>Giorno</th><th>Festività</th><th>Orario</th><th></th></tr></thead>
+  <tbody>{% set gg = ['lunedì','martedì','mercoledì','giovedì','venerdì','sabato','domenica'] %}{% for h in rows %}
+    <tr><td>{{ h.date|data }}</td><td class="small">{{ gg[h.date.weekday()] }}</td><td>{{ h.name }}</td><td class="small">{{ h.calendar.name if h.calendar else 'tutti' }}</td>
+      <td><form method="post" class="m-0">{{ csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ h.id }}"><input type="hidden" name="anno" value="{{ anno }}"><button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button></form></td></tr>
+  {% else %}<tr><td colspan="5" class="text-muted p-3">Nessuna festività per il {{ anno }}.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="col-lg-5"><form method="post" class="o-sheet alone">{{ csrf() }}<input type="hidden" name="anno" value="{{ anno }}">
+  <h6>Aggiungi festività</h6>
+  <input type="date" name="date" class="form-control form-control-sm mb-2" required>
+  <input name="name" class="form-control form-control-sm mb-2" placeholder="es. Santo patrono" required>
+  <select name="calendar_id" class="form-select form-select-sm mb-2"><option value="">Tutti gli orari</option>{% for c in calendars %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+  <button class="btn btn-sm btn-primary">Aggiungi</button>
+  <p class="small text-muted mt-2 mb-0">Nei giorni lavorati compaiono come riga <code>GLOBAL</code> ("Global Leaves" in Odoo). Nella busta mensile la festività è retribuita: la riga è informativa.</p>
+</form></div></div>
+{% endblock %}

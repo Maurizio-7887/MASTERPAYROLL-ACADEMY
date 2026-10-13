@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp %}
+{% block title %}Tipi di assenza{% endblock %}
+{% block controlpanel %}{{ cp([("Tipi di assenza", None)], "hr.leave.type") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+<div class="o-list table-responsive"><table class="table table-sm align-middle">
+  <thead><tr><th>Nome</th><th>Codice (worked_days)</th><th>Sequenza</th><th>Colore</th><th>Non retribuita</th><th>Attivo</th></tr></thead>
+  <tbody>{% for t in rows %}<tr><td><input name="n_{{ t.id }}" value="{{ t.name }}" class="form-control form-control-sm"></td><td><input name="c_{{ t.id }}" value="{{ t.code }}" class="form-control form-control-sm code" style="max-width:120px"></td>
+    <td><input name="s_{{ t.id }}" value="{{ t.sequence }}" class="form-control form-control-sm" style="max-width:80px"></td><td><input type="color" name="col_{{ t.id }}" value="{{ t.color }}" class="form-control form-control-sm form-control-color"></td>
+    <td><input type="checkbox" class="form-check-input" name="u_{{ t.id }}" {{ 'checked' if t.unpaid }}></td><td><input type="checkbox" class="form-check-input" name="a_{{ t.id }}" {{ 'checked' if t.active }}></td></tr>{% endfor %}
+  <tr class="table-light"><td><input name="new_name" class="form-control form-control-sm" placeholder="Nuovo tipo…"></td><td><input name="new_code" class="form-control form-control-sm code" style="max-width:120px" placeholder="CODICE"></td>
+    <td><input name="new_seq" value="20" class="form-control form-control-sm" style="max-width:80px"></td><td></td><td><input type="checkbox" class="form-check-input" name="new_unpaid"></td><td></td></tr></tbody>
+</table></div>
+<button class="btn btn-sm btn-primary mt-2">Salva</button>
+<p class="small text-muted mt-2">Il <strong>codice</strong> è quello del <em>work entry type</em> di Odoo: diventa il codice della riga nei giorni lavorati della busta. "Non retribuita" è solo indicativo: a ridurre la paga è una regola (es. <code>PNR</code>).</p>
+</form>
+{% endblock %}

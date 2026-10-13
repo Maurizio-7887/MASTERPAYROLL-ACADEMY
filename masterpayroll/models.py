@@ -1,4 +1,14 @@
-from datetime import date, datetime, timezone
+"""Modelli dati.
+
+Ogni classe ricalca un modello del modulo Payroll di Odoo (OCA/payroll 19.0) e
+dei moduli da cui dipende (hr, hr_contract/hr.version, resource, hr_holidays,
+mail). Il nome del modello Odoo è indicato in ``_odoo`` e mostrato
+nell'interfaccia, così gli allievi imparano anche la struttura di Odoo.
+
+Ogni ``Workspace`` è una azienda (``res.company``): ogni allievo ne ha una sua,
+isolata dalle altre.
+"""
+from datetime import date, datetime, timedelta, timezone
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -12,9 +22,14 @@ def now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# ---------------------------------------------------------------------------
-# Utenti, ambienti formativi, tracciamento attività
-# ---------------------------------------------------------------------------
+def ws_fk():
+    return db.Column(db.Integer, db.ForeignKey("workspaces.id", ondelete="CASCADE"),
+                     index=True, nullable=False)
+
+
+# ===========================================================================
+# Academy: utenti, ambienti, tracciamento, esercitazioni
+# ===========================================================================
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -46,21 +61,41 @@ class User(UserMixin, db.Model):
 
 
 class Workspace(db.Model):
-    """Ambiente isolato: ogni allievo (e il docente) ha la sua azienda simulata."""
+    """res.company + res.config.settings del modulo payroll."""
     __tablename__ = "workspaces"
+    _odoo = "res.company"
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=now)
     reset_at = db.Column(db.DateTime)
 
-    ragione_sociale = db.Column(db.String(160), default="")
-    partita_iva = db.Column(db.String(20), default="")
-    indirizzo = db.Column(db.String(200), default="")
+    name = db.Column(db.String(160), default="")
+    vat = db.Column(db.String(30), default="")
+    street = db.Column(db.String(200), default="")
+    city = db.Column(db.String(120), default="")
+    email = db.Column(db.String(120), default="")
+    phone = db.Column(db.String(40), default="")
     ccnl = db.Column(db.String(160), default="")
-    pat_inail = db.Column(db.String(40), default="")
     matricola_inps = db.Column(db.String(40), default="")
+    pat_inail = db.Column(db.String(40), default="")
+    currency = db.Column(db.String(3), default="EUR")
+
+    # res.config.settings (payroll.*)
+    leaves_positive = db.Column(db.Boolean, default=False)
+    allow_cancel_payslips = db.Column(db.Boolean, default=False)
+    prevent_compute_on_confirm = db.Column(db.Boolean, default=True)
+    allow_edit_payslip_lines = db.Column(db.Boolean, default=False)
+    require_code_and_category = db.Column(db.Boolean, default=False)
+
+    # ir.sequence "salary.slip": prefisso SLIP/, padding 3
+    slip_sequence_next = db.Column(db.Integer, default=1)
 
     owner = db.relationship("User", back_populates="workspace")
+
+    def next_slip_number(self):
+        n = self.slip_sequence_next or 1
+        self.slip_sequence_next = n + 1
+        return f"SLIP/{n:03d}"
 
 
 class Attivita(db.Model):
@@ -74,7 +109,6 @@ class Attivita(db.Model):
 
 
 class Esercitazione(db.Model):
-    """Esercizi proposti dal docente (comuni a tutta la classe)."""
     __tablename__ = "esercitazioni"
     id = db.Column(db.Integer, primary_key=True)
     ordine = db.Column(db.Integer, default=0)
@@ -94,20 +128,542 @@ class EsercitazioneSvolta(db.Model):
     __table_args__ = (db.UniqueConstraint("user_id", "esercitazione_id"),)
 
 
-# ---------------------------------------------------------------------------
-# Tabelle di configurazione (per ambiente)
-# ---------------------------------------------------------------------------
-class WsMixin:
-    @classmethod
-    def ws_col(cls):
-        return db.Column(db.Integer, db.ForeignKey("workspaces.id", ondelete="CASCADE"),
-                         index=True, nullable=False)
+# ===========================================================================
+# base / mail
+# ===========================================================================
+class Partner(db.Model):
+    __tablename__ = "partners"
+    _odoo = "res.partner"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(160), nullable=False)
+    vat = db.Column(db.String(30), default="")
+    street = db.Column(db.String(200), default="")
+    city = db.Column(db.String(120), default="")
+    email = db.Column(db.String(120), default="")
 
 
+class Message(db.Model):
+    """mail.message: il "chatter" con tracciamento dei campi."""
+    __tablename__ = "messages"
+    _odoo = "mail.message"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    model = db.Column(db.String(40), index=True)
+    res_id = db.Column(db.Integer, index=True)
+    author = db.Column(db.String(120), default="")
+    date = db.Column(db.DateTime, default=now)
+    body = db.Column(db.Text, default="")
+    tracking = db.Column(db.Text, default="")  # righe "campo: vecchio → nuovo"
+    message_type = db.Column(db.String(20), default="notification")  # notification | comment | email
+
+
+class MailMail(db.Model):
+    """mail.mail: posta in uscita (simulata se SMTP non è configurato)."""
+    __tablename__ = "mail_mail"
+    _odoo = "mail.mail"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    payslip_id = db.Column(db.Integer, db.ForeignKey("payslips.id", ondelete="SET NULL"))
+    email_from = db.Column(db.String(160), default="")
+    email_to = db.Column(db.String(160), default="")
+    subject = db.Column(db.String(255), default="")
+    body_html = db.Column(db.Text, default="")
+    attachment_name = db.Column(db.String(160), default="")
+    attachment = db.Column(db.LargeBinary)
+    state = db.Column(db.String(20), default="outgoing")  # outgoing | sent | simulated | exception
+    failure_reason = db.Column(db.Text, default="")
+    date = db.Column(db.DateTime, default=now)
+
+
+# ===========================================================================
+# resource / hr_holidays
+# ===========================================================================
+class ResourceCalendar(db.Model):
+    __tablename__ = "resource_calendars"
+    _odoo = "resource.calendar"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(120), nullable=False)
+    hours_per_day = db.Column(db.Float, default=8.0)
+    attendance_ids = db.relationship("ResourceCalendarAttendance", cascade="all, delete-orphan",
+                                     order_by="(ResourceCalendarAttendance.dayofweek, "
+                                              "ResourceCalendarAttendance.hour_from)",
+                                     back_populates="calendar")
+
+    @property
+    def hours_per_week(self):
+        return sum(a.hour_to - a.hour_from for a in self.attendance_ids)
+
+
+class ResourceCalendarAttendance(db.Model):
+    __tablename__ = "resource_calendar_attendances"
+    _odoo = "resource.calendar.attendance"
+    id = db.Column(db.Integer, primary_key=True)
+    calendar_id = db.Column(db.Integer, db.ForeignKey("resource_calendars.id", ondelete="CASCADE"))
+    name = db.Column(db.String(80), default="")
+    dayofweek = db.Column(db.Integer, nullable=False)  # 0 = lunedì
+    hour_from = db.Column(db.Float, nullable=False)
+    hour_to = db.Column(db.Float, nullable=False)
+    calendar = db.relationship("ResourceCalendar", back_populates="attendance_ids")
+
+
+class ResourceCalendarLeave(db.Model):
+    """Assenze globali (festività) del calendario: in Odoo diventano 'Global Leaves'."""
+    __tablename__ = "resource_calendar_leaves"
+    _odoo = "resource.calendar.leaves"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(120), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    calendar_id = db.Column(db.Integer, db.ForeignKey("resource_calendars.id", ondelete="CASCADE"))
+    calendar = db.relationship("ResourceCalendar")
+
+
+class LeaveType(db.Model):
+    __tablename__ = "leave_types"
+    _odoo = "hr.leave.type"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(120), nullable=False)
+    code = db.Column(db.String(20), nullable=False)  # codice del work entry usato nei worked days
+    sequence = db.Column(db.Integer, default=5)
+    color = db.Column(db.String(20), default="#6c757d")
+    unpaid = db.Column(db.Boolean, default=False)
+    active = db.Column(db.Boolean, default=True)
+
+
+class Leave(db.Model):
+    __tablename__ = "leaves"
+    _odoo = "hr.leave"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(200), default="")
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    holiday_status_id = db.Column(db.Integer, db.ForeignKey("leave_types.id"))
+    date_from = db.Column(db.Date, nullable=False)
+    date_to = db.Column(db.Date, nullable=False)
+    request_unit_hours = db.Column(db.Boolean, default=False)
+    hour_from = db.Column(db.Float)
+    hour_to = db.Column(db.Float)
+    state = db.Column(db.String(20), default="confirm")  # draft | confirm | validate | refuse
+    employee = db.relationship("Employee", back_populates="leave_ids")
+    holiday_status = db.relationship("LeaveType")
+
+
+# ===========================================================================
+# hr / hr.version (contratti)
+# ===========================================================================
+class Employee(db.Model):
+    __tablename__ = "employees"
+    _odoo = "hr.employee"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    active = db.Column(db.Boolean, default=True)
+    registration_number = db.Column(db.String(20), default="")  # matricola
+    last_name = db.Column(db.String(80), nullable=False)
+    first_name = db.Column(db.String(80), nullable=False)
+    job_title = db.Column(db.String(120), default="")  # "Designation" nel report Odoo
+    department = db.Column(db.String(80), default="")
+    qualifica = db.Column(db.String(20), default="operaio")
+    work_email = db.Column(db.String(120), default="")
+    work_phone = db.Column(db.String(40), default="")
+    private_street = db.Column(db.String(200), default="")
+    private_city = db.Column(db.String(120), default="")
+    private_email = db.Column(db.String(120), default="")
+    identification_id = db.Column(db.String(20), default="")  # codice fiscale
+    birthday = db.Column(db.Date)
+    place_of_birth = db.Column(db.String(120), default="")
+    bank_account = db.Column(db.String(40), default="")  # IBAN
+    resource_calendar_id = db.Column(db.Integer, db.ForeignKey("resource_calendars.id"))
+
+    resource_calendar = db.relationship("ResourceCalendar")
+    contract_ids = db.relationship("Contract", back_populates="employee", cascade="all, delete-orphan",
+                                   order_by="Contract.date_start")
+    familiari = db.relationship("Familiare", back_populates="employee", cascade="all, delete-orphan",
+                                order_by="Familiare.id")
+    leave_ids = db.relationship("Leave", back_populates="employee", cascade="all, delete-orphan")
+    slip_ids = db.relationship("Payslip", back_populates="employee", cascade="all, delete-orphan",
+                               foreign_keys="Payslip.employee_id")
+
+    @property
+    def name(self):
+        return f"{self.last_name} {self.first_name}"
+
+    @property
+    def payslip_count(self):
+        return len(self.slip_ids)
+
+    @property
+    def contract_id(self):
+        """Contratto corrente (in corso), come employee.contract_id in Odoo."""
+        for c in reversed(self.contract_ids):
+            if c.state == "open":
+                return c
+        return None
+
+
+class Familiare(db.Model):
+    """Familiari a carico (estensione italiana di hr.employee)."""
+    __tablename__ = "familiari"
+    _odoo = "hr.employee.familiare (l10n_it)"
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    relazione = db.Column(db.String(20), default="figlio")  # coniuge | figlio | altro
+    nome = db.Column(db.String(120), default="")
+    codice_fiscale = db.Column(db.String(16), default="")
+    data_nascita = db.Column(db.Date)
+    percentuale = db.Column(db.Float, default=100.0)
+    employee = db.relationship("Employee", back_populates="familiari")
+
+    def eta_al(self, d):
+        if not self.data_nascita:
+            return None
+        return d.year - self.data_nascita.year - ((d.month, d.day) < (self.data_nascita.month,
+                                                                      self.data_nascita.day))
+
+
+class Livello(db.Model):
+    """Livelli e minimi del CCNL (estensione italiana)."""
+    __tablename__ = "livelli"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    codice = db.Column(db.String(10), nullable=False)
+    descrizione = db.Column(db.String(200), default="")
+    minimo = db.Column(db.Float, default=0.0)
+    scatto_importo = db.Column(db.Float, default=0.0)
+
+
+CONTRACT_STATES = [("draft", "Nuovo"), ("open", "In corso"), ("close", "Scaduto"), ("cancel", "Annullato")]
+SCHEDULE_PAY = [("monthly", "Mensile"), ("quarterly", "Trimestrale"), ("semi-annually", "Semestrale"),
+                ("annually", "Annuale"), ("weekly", "Settimanale"), ("bi-weekly", "Bisettimanale"),
+                ("bi-monthly", "Bimestrale")]
+
+
+class Contract(db.Model):
+    """hr.version (Odoo 19) / hr.contract con i campi aggiunti dal modulo payroll."""
+    __tablename__ = "contracts"
+    _odoo = "hr.version"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(160), default="")
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    state = db.Column(db.String(20), default="draft")
+    contract_type = db.Column(db.String(30), default="indeterminato")
+    job_title = db.Column(db.String(120), default="")
+    department = db.Column(db.String(80), default="")
+    date_start = db.Column(db.Date, nullable=False, default=date.today)
+    date_end = db.Column(db.Date)
+    trial_date_end = db.Column(db.Date)
+    resource_calendar_id = db.Column(db.Integer, db.ForeignKey("resource_calendars.id"))
+    wage = db.Column(db.Float, default=0.0)  # retribuzione base mensile (minimo tabellare)
+    struct_id = db.Column(db.Integer, db.ForeignKey("payroll_structures.id"))
+    schedule_pay = db.Column(db.String(20), default="monthly")
+    notes = db.Column(db.Text, default="")
+    # --- estensione italiana
+    ccnl = db.Column(db.String(160), default="")
+    livello_id = db.Column(db.Integer, db.ForeignKey("livelli.id"))
+    superminimo = db.Column(db.Float, default=0.0)
+    scatti_n = db.Column(db.Integer, default=0)
+    scatto_importo = db.Column(db.Float, default=0.0)
+    part_time = db.Column(db.Float, default=100.0)
+    mensilita = db.Column(db.Float, default=13.0)
+    divisore_orario = db.Column(db.Float, default=173.0)
+    add_reg_rata = db.Column(db.Float, default=0.0)
+    add_com_rata = db.Column(db.Float, default=0.0)
+
+    employee = db.relationship("Employee", back_populates="contract_ids")
+    struct = db.relationship("PayrollStructure")
+    resource_calendar = db.relationship("ResourceCalendar")
+    livello = db.relationship("Livello")
+
+    @property
+    def retribuzione_mensile(self):
+        pt = (self.part_time or 0) / 100
+        return round(((self.wage or 0) + (self.superminimo or 0)
+                      + (self.scatti_n or 0) * (self.scatto_importo or 0)) * pt, 2)
+
+    @property
+    def ral(self):
+        """Retribuzione Annua Lorda."""
+        return round(self.retribuzione_mensile * (self.mensilita or 13), 2)
+
+    def is_overlapping_period(self, date_from, date_to):
+        return self.date_start <= date_to and (self.date_end is None or self.date_end >= date_from)
+
+
+# ===========================================================================
+# payroll
+# ===========================================================================
+class SalaryRuleCategory(db.Model):
+    __tablename__ = "salary_rule_categories"
+    _odoo = "hr.salary.rule.category"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(120), nullable=False)
+    code = db.Column(db.String(30))
+    parent_id = db.Column(db.Integer, db.ForeignKey("salary_rule_categories.id", ondelete="SET NULL"))
+    note = db.Column(db.Text, default="")
+    parent = db.relationship("SalaryRuleCategory", remote_side=[id], backref="children_ids")
+
+
+class ContributionRegister(db.Model):
+    __tablename__ = "contribution_registers"
+    _odoo = "hr.contribution.register"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(160), nullable=False)
+    partner_id = db.Column(db.Integer, db.ForeignKey("partners.id", ondelete="SET NULL"))
+    note = db.Column(db.Text, default="")
+    # --- estensione italiana: dove finisce nel modello F24
+    f24_sezione = db.Column(db.String(10), default="")  # "" | erario | inps | inail
+    f24_codice = db.Column(db.String(20), default="")
+    f24_tipo = db.Column(db.String(10), default="debito")  # debito | credito
+    partner = db.relationship("Partner")
+
+
+structure_rule_rel = db.Table(
+    "hr_structure_salary_rule_rel",
+    db.Column("struct_id", db.Integer, db.ForeignKey("payroll_structures.id", ondelete="CASCADE"),
+              primary_key=True),
+    db.Column("rule_id", db.Integer, db.ForeignKey("salary_rules.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class PayrollStructure(db.Model):
+    __tablename__ = "payroll_structures"
+    _odoo = "hr.payroll.structure"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(160), nullable=False)
+    code = db.Column(db.String(40))
+    note = db.Column(db.Text, default="")
+    parent_id = db.Column(db.Integer, db.ForeignKey("payroll_structures.id", ondelete="SET NULL"))
+    parent = db.relationship("PayrollStructure", remote_side=[id], backref="children_ids")
+    rule_ids = db.relationship("SalaryRule", secondary=structure_rule_rel, back_populates="struct_ids",
+                               order_by="(SalaryRule.sequence, SalaryRule.id)")
+
+    def get_structure_with_parents(self):
+        """Odoo: parent_id.get_structure_with_parents() + self (padri prima)."""
+        chain, seen, s = [], set(), self
+        while s is not None and s.id not in seen:
+            seen.add(s.id)
+            chain.insert(0, s)
+            s = s.parent
+        return chain
+
+
+class SalaryRule(db.Model):
+    __tablename__ = "salary_rules"
+    _odoo = "hr.salary.rule"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(160), nullable=False)
+    code = db.Column(db.String(40))
+    sequence = db.Column(db.Integer, nullable=False, default=5, index=True)
+    quantity = db.Column(db.Text, default="1.0")
+    category_id = db.Column(db.Integer, db.ForeignKey("salary_rule_categories.id", ondelete="SET NULL"))
+    active = db.Column(db.Boolean, default=True)
+    appears_on_payslip = db.Column(db.Boolean, default=True)
+    parent_rule_id = db.Column(db.Integer, db.ForeignKey("salary_rules.id", ondelete="SET NULL"), index=True)
+    condition_select = db.Column(db.String(10), nullable=False, default="none")  # none | range | python
+    condition_range = db.Column(db.Text, default="contract.wage")
+    condition_python = db.Column(db.Text, default="")
+    condition_range_min = db.Column(db.Float, default=0.0)
+    condition_range_max = db.Column(db.Float, default=0.0)
+    amount_select = db.Column(db.String(12), nullable=False, default="fix")  # percentage | fix | code
+    amount_fix = db.Column(db.Float, default=0.0)
+    amount_percentage = db.Column(db.Float, default=0.0)
+    amount_python_compute = db.Column(db.Text, default="")
+    amount_percentage_base = db.Column(db.Text, default="")
+    register_id = db.Column(db.Integer, db.ForeignKey("contribution_registers.id", ondelete="SET NULL"))
+    note = db.Column(db.Text, default="")
+
+    category = db.relationship("SalaryRuleCategory", backref="salary_rules_ids")
+    parent_rule = db.relationship("SalaryRule", remote_side=[id], backref="child_ids")
+    register = db.relationship("ContributionRegister")
+    struct_ids = db.relationship("PayrollStructure", secondary=structure_rule_rel, back_populates="rule_ids")
+    input_ids = db.relationship("RuleInput", cascade="all, delete-orphan", back_populates="rule",
+                                order_by="RuleInput.id")
+
+
+class RuleInput(db.Model):
+    __tablename__ = "rule_inputs"
+    _odoo = "hr.rule.input"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False)
+    code = db.Column(db.String(40), nullable=False)
+    input_id = db.Column(db.Integer, db.ForeignKey("salary_rules.id", ondelete="CASCADE"), nullable=False)
+    rule = db.relationship("SalaryRule", back_populates="input_ids")
+
+
+PAYSLIP_STATES = [("draft", "Bozza"), ("verify", "In attesa"), ("done", "Completata"), ("cancel", "Rifiutata")]
+
+
+class PayslipRun(db.Model):
+    __tablename__ = "payslip_runs"
+    _odoo = "hr.payslip.run"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    name = db.Column(db.String(160), nullable=False)
+    state = db.Column(db.String(10), default="draft")  # draft | close
+    date_start = db.Column(db.Date, nullable=False)
+    date_end = db.Column(db.Date, nullable=False)
+    credit_note = db.Column(db.Boolean, default=False)
+    struct_id = db.Column(db.Integer, db.ForeignKey("payroll_structures.id", ondelete="SET NULL"))
+    struct = db.relationship("PayrollStructure")
+    slip_ids = db.relationship("Payslip", back_populates="payslip_run")
+
+
+class Payslip(db.Model):
+    __tablename__ = "payslips"
+    _odoo = "hr.payslip"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    struct_id = db.Column(db.Integer, db.ForeignKey("payroll_structures.id", ondelete="SET NULL"))
+    name = db.Column(db.String(200), default="")
+    number = db.Column(db.String(40))
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), nullable=False,
+                            index=True)
+    date_from = db.Column(db.Date, nullable=False)
+    date_to = db.Column(db.Date, nullable=False)
+    state = db.Column(db.String(10), default="draft", index=True)
+    paid = db.Column(db.Boolean, default=False)
+    note = db.Column(db.Text, default="")
+    contract_id = db.Column(db.Integer, db.ForeignKey("contracts.id", ondelete="SET NULL"))
+    credit_note = db.Column(db.Boolean, default=False)
+    payslip_run_id = db.Column(db.Integer, db.ForeignKey("payslip_runs.id", ondelete="SET NULL"))
+    hide_child_lines = db.Column(db.Boolean, default=False)
+    hide_invisible_lines = db.Column(db.Boolean, default=False)
+    compute_date = db.Column(db.Date)
+    refunded_id = db.Column(db.Integer, db.ForeignKey("payslips.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, default=now)
+
+    struct = db.relationship("PayrollStructure")
+    employee = db.relationship("Employee", back_populates="slip_ids", foreign_keys=[employee_id])
+    contract = db.relationship("Contract")
+    payslip_run = db.relationship("PayslipRun", back_populates="slip_ids")
+    refunded = db.relationship("Payslip", remote_side=[id])
+    line_ids = db.relationship("PayslipLine", cascade="all, delete-orphan", back_populates="slip",
+                               order_by="(PayslipLine.contract_id, PayslipLine.sequence, PayslipLine.id)")
+    worked_days_line_ids = db.relationship("PayslipWorkedDays", cascade="all, delete-orphan",
+                                           back_populates="payslip",
+                                           order_by="(PayslipWorkedDays.sequence, PayslipWorkedDays.id)")
+    input_line_ids = db.relationship("PayslipInput", cascade="all, delete-orphan", back_populates="payslip",
+                                     order_by="(PayslipInput.sequence, PayslipInput.id)")
+
+    @property
+    def payslip_count(self):
+        return len(self.line_ids)
+
+    @property
+    def dynamic_filtered_payslip_lines(self):
+        lines = list(self.line_ids)
+        if self.hide_child_lines:
+            lines = [ln for ln in lines if not ln.parent_rule_id]
+        if self.hide_invisible_lines:
+            lines = [ln for ln in lines if ln.appears_on_payslip]
+        return lines
+
+    def get_salary_line_total(self, code):
+        for line in self.line_ids:
+            if line.code == code:
+                return line.total
+        return 0.0
+
+
+class PayslipWorkedDays(db.Model):
+    __tablename__ = "payslip_worked_days"
+    _odoo = "hr.payslip.worked_days"
+    id = db.Column(db.Integer, primary_key=True)
+    payslip_id = db.Column(db.Integer, db.ForeignKey("payslips.id", ondelete="CASCADE"), index=True)
+    name = db.Column(db.String(160), nullable=False)
+    sequence = db.Column(db.Integer, default=10)
+    code = db.Column(db.String(40), nullable=False)
+    number_of_days = db.Column(db.Float, default=0.0)
+    number_of_hours = db.Column(db.Float, default=0.0)
+    contract_id = db.Column(db.Integer, db.ForeignKey("contracts.id", ondelete="SET NULL"))
+    payslip = db.relationship("Payslip", back_populates="worked_days_line_ids")
+    contract = db.relationship("Contract")
+
+
+class PayslipInput(db.Model):
+    __tablename__ = "payslip_inputs"
+    _odoo = "hr.payslip.input"
+    id = db.Column(db.Integer, primary_key=True)
+    payslip_id = db.Column(db.Integer, db.ForeignKey("payslips.id", ondelete="CASCADE"), index=True)
+    name = db.Column(db.String(160), nullable=False)
+    sequence = db.Column(db.Integer, default=10)
+    code = db.Column(db.String(40), nullable=False)
+    amount = db.Column(db.Float, default=0.0)
+    amount_qty = db.Column(db.Float, default=0.0)
+    contract_id = db.Column(db.Integer, db.ForeignKey("contracts.id", ondelete="SET NULL"))
+    payslip = db.relationship("Payslip", back_populates="input_line_ids")
+    contract = db.relationship("Contract")
+
+
+class PayslipLine(db.Model):
+    """hr.payslip.line: eredita (copia) i campi della regola + quantità/tasso/importo/totale."""
+    __tablename__ = "payslip_lines"
+    _odoo = "hr.payslip.line"
+    id = db.Column(db.Integer, primary_key=True)
+    slip_id = db.Column(db.Integer, db.ForeignKey("payslips.id", ondelete="CASCADE"), index=True)
+    salary_rule_id = db.Column(db.Integer, db.ForeignKey("salary_rules.id", ondelete="SET NULL"))
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"))
+    contract_id = db.Column(db.Integer, db.ForeignKey("contracts.id", ondelete="SET NULL"), index=True)
+    name = db.Column(db.String(200))
+    code = db.Column(db.String(40), index=True)
+    sequence = db.Column(db.Integer)
+    category_id = db.Column(db.Integer, db.ForeignKey("salary_rule_categories.id", ondelete="SET NULL"))
+    appears_on_payslip = db.Column(db.Boolean, default=True)
+    parent_rule_id = db.Column(db.Integer, db.ForeignKey("salary_rules.id", ondelete="SET NULL"))
+    condition_select = db.Column(db.String(10))
+    condition_python = db.Column(db.Text)
+    condition_range = db.Column(db.Text)
+    condition_range_min = db.Column(db.Float)
+    condition_range_max = db.Column(db.Float)
+    amount_select = db.Column(db.String(12))
+    amount_fix = db.Column(db.Float)
+    amount_python_compute = db.Column(db.Text)
+    amount_percentage = db.Column(db.Float)
+    amount_percentage_base = db.Column(db.Text)
+    register_id = db.Column(db.Integer, db.ForeignKey("contribution_registers.id", ondelete="SET NULL"))
+    quantity = db.Column(db.Float, default=1.0)
+    rate = db.Column(db.Float, default=100.0)
+    amount = db.Column(db.Float, default=0.0)
+    total = db.Column(db.Float, default=0.0)
+
+    slip = db.relationship("Payslip", back_populates="line_ids")
+    salary_rule = db.relationship("SalaryRule", foreign_keys=[salary_rule_id])
+    parent_rule = db.relationship("SalaryRule", foreign_keys=[parent_rule_id])
+    category = db.relationship("SalaryRuleCategory")
+    register = db.relationship("ContributionRegister")
+    employee = db.relationship("Employee")
+    contract = db.relationship("Contract")
+
+    def compute_total(self):
+        self.total = round(float(self.quantity or 0) * (self.amount or 0) * (self.rate or 0) / 100, 2)
+
+    @property
+    def parent_line(self):
+        if not self.parent_rule_id:
+            return None
+        found = [ln for ln in self.slip.line_ids if ln.salary_rule_id == self.parent_rule_id
+                 and ln.contract_id == self.contract_id]
+        return found[0] if len(found) == 1 else None
+
+    @property
+    def date_from(self):
+        return self.slip.date_from if self.slip else None
+
+
+# ===========================================================================
+# Estensione italiana: parametri e scaglioni (esposti alle regole come payroll.CODICE)
+# ===========================================================================
 class Parametro(db.Model):
     __tablename__ = "parametri"
     id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
+    workspace_id = ws_fk()
     codice = db.Column(db.String(40), nullable=False)
     descrizione = db.Column(db.String(200), default="")
     valore = db.Column(db.Float, default=0.0)
@@ -117,236 +673,21 @@ class Parametro(db.Model):
 class ScaglioneIrpef(db.Model):
     __tablename__ = "scaglioni_irpef"
     id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
+    workspace_id = ws_fk()
     da = db.Column(db.Float, nullable=False)
-    a = db.Column(db.Float)  # None = oltre
+    a = db.Column(db.Float)
     aliquota = db.Column(db.Float, nullable=False)
 
 
-class Livello(db.Model):
-    __tablename__ = "livelli"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    codice = db.Column(db.String(10), nullable=False)
-    descrizione = db.Column(db.String(200), default="")
-    minimo = db.Column(db.Float, default=0.0)
-    scatto_importo = db.Column(db.Float, default=0.0)
+def month_bounds(d):
+    first = d.replace(day=1)
+    nxt = (first + timedelta(days=32)).replace(day=1)
+    return first, nxt - timedelta(days=1)
 
 
-class Categoria(db.Model):
-    """Categoria di regola (come hr.salary.rule.category di Odoo)."""
-    __tablename__ = "categorie"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    codice = db.Column(db.String(20), nullable=False)
-    nome = db.Column(db.String(120), nullable=False)
-    tipo = db.Column(db.String(20), default="info")  # competenza | trattenuta | info
-    sequenza = db.Column(db.Integer, default=10)
-
-
-class Struttura(db.Model):
-    """Struttura retributiva: insieme ordinato di regole (hr.payroll.structure)."""
-    __tablename__ = "strutture"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    codice = db.Column(db.String(30), nullable=False)
-    nome = db.Column(db.String(160), nullable=False)
-    tipo_cedolino = db.Column(db.String(20), default="ordinaria")  # ordinaria | tredicesima
-    descrizione = db.Column(db.Text, default="")
-
-    regole = db.relationship("Regola", back_populates="struttura",
-                             order_by="Regola.sequenza", cascade="all, delete-orphan")
-
-
-class Regola(db.Model):
-    """Regola salariale (hr.salary.rule): condizione + formula."""
-    __tablename__ = "regole"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    struttura_id = db.Column(db.Integer, db.ForeignKey("strutture.id", ondelete="CASCADE"))
-    sequenza = db.Column(db.Integer, default=100)
-    codice = db.Column(db.String(30), nullable=False)
-    nome = db.Column(db.String(160), nullable=False)
-    categoria_id = db.Column(db.Integer, db.ForeignKey("categorie.id"))
-    condizione = db.Column(db.Text, default="")
-    formula = db.Column(db.Text, default="0")
-    quantita_formula = db.Column(db.Text, default="")
-    base_formula = db.Column(db.Text, default="")
-    stampa = db.Column(db.Boolean, default=True)
-    registro = db.Column(db.String(40), default="")
-    note = db.Column(db.Text, default="")
-    attiva = db.Column(db.Boolean, default=True)
-
-    struttura = db.relationship("Struttura", back_populates="regole")
-    categoria = db.relationship("Categoria")
-
-
-# ---------------------------------------------------------------------------
-# Anagrafiche
-# ---------------------------------------------------------------------------
-class Dipendente(db.Model):
-    __tablename__ = "dipendenti"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    matricola = db.Column(db.String(20), nullable=False)
-    cognome = db.Column(db.String(80), nullable=False)
-    nome = db.Column(db.String(80), nullable=False)
-    codice_fiscale = db.Column(db.String(16), default="")
-    data_nascita = db.Column(db.Date)
-    comune_residenza = db.Column(db.String(80), default="")
-    data_assunzione = db.Column(db.Date)
-    data_cessazione = db.Column(db.Date)
-    qualifica = db.Column(db.String(20), default="operaio")  # operaio | impiegato | apprendista
-    mansione = db.Column(db.String(120), default="")
-    reparto = db.Column(db.String(60), default="")
-    attivo = db.Column(db.Boolean, default=True)
-
-    contratti = db.relationship("Contratto", back_populates="dipendente",
-                                cascade="all, delete-orphan", order_by="Contratto.data_inizio")
-
-    @property
-    def nominativo(self):
-        return f"{self.cognome} {self.nome}"
-
-    @property
-    def contratto_attivo(self):
-        for c in reversed(self.contratti):
-            if c.attivo:
-                return c
-        return None
-
-
-class Contratto(db.Model):
-    __tablename__ = "contratti"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    dipendente_id = db.Column(db.Integer, db.ForeignKey("dipendenti.id", ondelete="CASCADE"))
-    tipo = db.Column(db.String(30), default="indeterminato")  # indeterminato | determinato | apprendistato
-    livello_id = db.Column(db.Integer, db.ForeignKey("livelli.id"))
-    struttura_id = db.Column(db.Integer, db.ForeignKey("strutture.id"))
-    minimo = db.Column(db.Float, default=0.0)
-    superminimo = db.Column(db.Float, default=0.0)
-    scatti_n = db.Column(db.Integer, default=0)
-    scatto_importo = db.Column(db.Float, default=0.0)
-    part_time = db.Column(db.Float, default=100.0)  # percentuale
-    ore_settimanali = db.Column(db.Float, default=40.0)
-    divisore_orario = db.Column(db.Float, default=173.0)
-    add_reg_rata = db.Column(db.Float, default=0.0)
-    add_com_rata = db.Column(db.Float, default=0.0)
-    data_inizio = db.Column(db.Date, default=date.today)
-    data_fine = db.Column(db.Date)
-    attivo = db.Column(db.Boolean, default=True)
-
-    dipendente = db.relationship("Dipendente", back_populates="contratti")
-    livello = db.relationship("Livello")
-    struttura = db.relationship("Struttura")
-
-    @property
-    def retribuzione_mensile(self):
-        pt = (self.part_time or 0) / 100
-        return round(((self.minimo or 0) + (self.superminimo or 0)) * pt
-                     + (self.scatti_n or 0) * (self.scatto_importo or 0) * pt, 2)
-
-
-# ---------------------------------------------------------------------------
-# Elaborazioni e cedolini
-# ---------------------------------------------------------------------------
-class Elaborazione(db.Model):
-    """Elaborazione mensile (hr.payslip.run): un lotto di cedolini."""
-    __tablename__ = "elaborazioni"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    anno = db.Column(db.Integer, nullable=False)
-    mese = db.Column(db.Integer, nullable=False)
-    tipo = db.Column(db.String(20), default="ordinaria")
-    descrizione = db.Column(db.String(200), default="")
-    created_at = db.Column(db.DateTime, default=now)
-
-    cedolini = db.relationship("Cedolino", back_populates="elaborazione")
-
-
-class Cedolino(db.Model):
-    __tablename__ = "cedolini"
-    id = db.Column(db.Integer, primary_key=True)
-    workspace_id = WsMixin.ws_col()
-    elaborazione_id = db.Column(db.Integer, db.ForeignKey("elaborazioni.id", ondelete="SET NULL"))
-    dipendente_id = db.Column(db.Integer, db.ForeignKey("dipendenti.id", ondelete="CASCADE"))
-    contratto_id = db.Column(db.Integer, db.ForeignKey("contratti.id", ondelete="SET NULL"))
-    struttura_id = db.Column(db.Integer, db.ForeignKey("strutture.id", ondelete="SET NULL"))
-    anno = db.Column(db.Integer, nullable=False)
-    mese = db.Column(db.Integer, nullable=False)
-    tipo = db.Column(db.String(20), default="ordinaria")
-    giorni_lavorati = db.Column(db.Float, default=26)
-    ore_lavorate = db.Column(db.Float, default=0)
-    stato = db.Column(db.String(20), default="bozza")  # bozza | calcolato | confermato
-    lordo = db.Column(db.Float, default=0.0)
-    netto = db.Column(db.Float, default=0.0)
-    costo = db.Column(db.Float, default=0.0)
-    errore = db.Column(db.Text, default="")
-    calcolato_at = db.Column(db.DateTime)
-    confermato_at = db.Column(db.DateTime)
-
-    elaborazione = db.relationship("Elaborazione", back_populates="cedolini")
-    dipendente = db.relationship("Dipendente")
-    contratto = db.relationship("Contratto")
-    struttura = db.relationship("Struttura")
-    inputs = db.relationship("CedolinoInput", cascade="all, delete-orphan",
-                             back_populates="cedolino")
-    righe = db.relationship("CedolinoRiga", cascade="all, delete-orphan",
-                            order_by="CedolinoRiga.sequenza", back_populates="cedolino")
-
-    def input_map(self):
-        return {i.codice: i.valore for i in self.inputs}
-
-    def riga(self, codice):
-        for r in self.righe:
-            if r.codice == codice:
-                return r
-        return None
-
-    def importo(self, codice):
-        r = self.riga(codice)
-        return r.importo if r else 0.0
-
-
-class CedolinoInput(db.Model):
-    __tablename__ = "cedolino_inputs"
-    id = db.Column(db.Integer, primary_key=True)
-    cedolino_id = db.Column(db.Integer, db.ForeignKey("cedolini.id", ondelete="CASCADE"), index=True)
-    codice = db.Column(db.String(30), nullable=False)
-    valore = db.Column(db.Float, default=0.0)
-
-    cedolino = db.relationship("Cedolino", back_populates="inputs")
-
-
-class CedolinoRiga(db.Model):
-    __tablename__ = "cedolino_righe"
-    id = db.Column(db.Integer, primary_key=True)
-    cedolino_id = db.Column(db.Integer, db.ForeignKey("cedolini.id", ondelete="CASCADE"), index=True)
-    sequenza = db.Column(db.Integer)
-    codice = db.Column(db.String(30))
-    nome = db.Column(db.String(160))
-    categoria_codice = db.Column(db.String(20))
-    categoria_tipo = db.Column(db.String(20))
-    quantita = db.Column(db.Float)
-    base = db.Column(db.Float)
-    importo = db.Column(db.Float, default=0.0)
-    stampa = db.Column(db.Boolean, default=True)
-    registro = db.Column(db.String(40), default="")
-
-    cedolino = db.relationship("Cedolino", back_populates="righe")
-
-
-# Voci variabili che si possono inserire in un cedolino (come hr.payslip.input).
-INPUT_CATALOGO = [
-    ("STR25", "Ore straordinario feriale (maggiorazione 25%)", "ore"),
-    ("STR50", "Ore straordinario festivo/notturno (maggiorazione 50%)", "ore"),
-    ("ORE_ASS", "Ore di assenza non retribuita", "ore"),
-    ("FERIE", "Ore di ferie godute", "ore"),
-    ("ROL", "Ore di permesso (ROL) godute", "ore"),
-    ("PREMIO", "Premio una tantum (lordo)", "€"),
-    ("RIMBORSI", "Rimborsi spese documentati (non imponibili)", "€"),
-    ("ANTICIPO", "Anticipo già erogato da recuperare", "€"),
-    ("MESI_13", "Mesi maturati per la tredicesima", "mesi"),
-]
-INPUT_CODES = [c for c, _, _ in INPUT_CATALOGO]
+# Tutti i modelli legati a un ambiente, nell'ordine in cui cancellarli.
+WORKSPACE_MODELS = [MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
+                    Leave, Familiare, Contract, Employee, RuleInput, SalaryRule, PayrollStructure,
+                    SalaryRuleCategory, ContributionRegister, Partner, ResourceCalendarLeave,
+                    ResourceCalendarAttendance, ResourceCalendar, LeaveType, Livello, Parametro,
+                    ScaglioneIrpef]

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, money %}
+{% block title %}Versamenti F24{% endblock %}
+{% block controlpanel %}
+{% call cp([("Versamenti F24 · " ~ MESI[mese] ~ " " ~ anno, None)], "l10n_it: da hr.contribution.register") %}
+<form class="d-flex gap-2 align-items-center">
+  <select name="mese" class="form-select form-select-sm">{% for m in range(1,13) %}<option value="{{ m }}" {{ 'selected' if m == mese }}>{{ MESI[m] }}</option>{% endfor %}</select>
+  <input name="anno" type="number" value="{{ anno }}" class="form-control form-control-sm" style="width:90px">
+  <button class="btn btn-sm btn-primary">Mostra</button>
+</form>
+{% endcall %}
+{% endblock %}
+{% block content %}
+<p class="small text-muted">Totali delle righe delle buste <strong>completate</strong> del mese, raggruppati per <a href="{{ url_for('main.registers') }}">registro contributi</a>. La sezione F24 di ogni registro si imposta nella sua scheda. Scadenza: <strong>{{ scadenza|data }}</strong> (16 del mese successivo; se festivo, primo giorno lavorativo).</p>
+{% if not slips %}<div class="o-sheet alone text-muted">Nessuna busta completata in questo mese.</div>{% else %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Modello F24 · Sezione Erario</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Codice tributo</th><th>Registro</th><th class="num">Importi a debito</th><th class="num">Importi a credito</th></tr></thead>
+      {% for r, imp in erario_debito %}<tr><td class="code fw-bold">{{ r.f24_codice }}</td><td class="small">{{ r.name }}</td><td class="num">{{ imp|euro }}</td><td></td></tr>{% endfor %}
+      {% for r, imp in erario_credito %}<tr><td class="code fw-bold">{{ r.f24_codice }}</td><td class="small">{{ r.name }}</td><td></td><td class="num">{{ imp|euro }}</td></tr>{% endfor %}
+      <tfoot><tr class="fw-bold"><td colspan="2">Totali (saldo {{ (tot_deb - tot_cred)|euro }})</td><td class="num">{{ tot_deb|euro }}</td><td class="num">{{ tot_cred|euro }}</td></tr></tfoot>
+    </table>
+    <div class="card-body small text-muted py-2">Il codice tributo della somma esente del cuneo fiscale va verificato sulle risoluzioni dell'Agenzia delle Entrate: qui è indicato come "CUNEO".</div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header">Sezione INPS e riepilogo</div>
+    <table class="table table-sm mb-0">
+      <tr><td>Contributi INPS (dipendente + azienda), causale DM10</td><td class="num">{{ inps|euro }}</td></tr>
+      <tr class="table-primary fw-bold"><td>Totale F24 da versare</td><td class="num">€ {{ saldo|euro }}</td></tr>
+      <tr class="text-muted"><td>INAIL (rateo; il premio si paga in autoliquidazione)</td><td class="num">{{ inail|euro }}</td></tr>
+      {% for r, imp in altri %}<tr class="text-muted"><td>{{ r.name }} <span class="small">(non in F24)</span></td><td class="num">{{ imp|euro }}</td></tr>{% endfor %}
+    </table></div></div>
+</div>
+<div class="o-list table-responsive"><table class="table table-sm table-hover">
+  <thead><tr><th>Riferimento</th><th>Dipendente</th><th class="num">Lordo</th><th class="num">INPS dip.</th><th class="num">IRPEF</th><th class="num">Addizionali</th><th class="num">Netto</th><th class="num">Contributi azienda</th><th class="num">Costo</th></tr></thead>
+  <tbody>{% for s in slips %}{% set sg = -1 if s.credit_note else 1 %}
+    <tr class="click" data-href="{{ url_for('main.payslip', slip_id=s.id) }}"><td>{{ s.number }}{% if s.credit_note %} <span class="badge text-bg-warning">NC</span>{% endif %}</td><td>{{ s.employee.name }}</td>
+      <td class="num">{{ money(sg * s.get_salary_line_total('GROSS')) }}</td>
+      <td class="num">{{ money(sg * (s.get_salary_line_total('INPS_DIP') + s.get_salary_line_total('INPS_AGG'))) }}</td>
+      <td class="num">{{ money(sg * (s.get_salary_line_total('IRPEF') + s.get_salary_line_total('IRPEF13'))) }}</td>
+      <td class="num">{{ money(sg * (s.get_salary_line_total('ADD_REG') + s.get_salary_line_total('ADD_COM'))) }}</td>
+      <td class="num fw-bold">{{ money(sg * s.get_salary_line_total('NET')) }}</td>
+      <td class="num">{{ money(sg * (s.get_salary_line_total('INPS_DITTA') + s.get_salary_line_total('INAIL') + s.get_salary_line_total('TFR'))) }}</td>
+      <td class="num">{{ money(sg * s.get_salary_line_total('COSTO')) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endblock %}

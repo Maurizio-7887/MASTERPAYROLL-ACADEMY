@@ -1,3 +1,58 @@
 {% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token }}">{% endmacro %}
-{% macro stato(s) %}<span class="badge stato-{{ s }}">{{ s }}</span>{% endmacro %}
-{% macro data(d) %}{{ d.strftime('%d/%m/%Y') if d else '' }}{% endmacro %}
+
+{% macro badge(state, labels) %}<span class="badge st-{{ state }}">{{ labels.get(state, state) }}</span>{% endmacro %}
+
+{% macro cp(crumbs, model=None) %}
+<div class="o-cp d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <ol class="breadcrumb">
+    {% for label, href in crumbs %}
+      {% if href and not loop.last %}<li class="breadcrumb-item"><a href="{{ href }}">{{ label }}</a></li>
+      {% else %}<li class="breadcrumb-item active">{{ label }}</li>{% endif %}
+    {% endfor %}
+  </ol>
+  <div class="d-flex align-items-center gap-2">{{ caller() if caller }}{% if model %}<span class="o-model" title="Modello Odoo">{{ model }}</span>{% endif %}</div>
+</div>
+{% endmacro %}
+
+{% macro statusbar(states, current) %}
+<div class="o-statusbar">{% for k, label in states %}<span class="{{ 'active' if k == current }}">{{ label }}</span>{% endfor %}</div>
+{% endmacro %}
+
+{% macro row(label, help=None) %}
+<div class="o-field-row"><label>{{ label }}{% if help %} <i class="bi bi-question-circle text-muted" title="{{ help }}"></i>{% endif %}</label><div>{{ caller() }}</div></div>
+{% endmacro %}
+
+{% macro inp(name, value, type="text", ro=False, cls="", extra="") %}
+{% if ro %}<div class="o-ro">{{ value if value is not none else '' }}</div>
+{% else %}<input type="{{ type }}" name="{{ name }}" class="form-control form-control-sm {{ cls }}" value="{{ value if value is not none else '' }}" {{ extra|safe }}>{% endif %}
+{% endmacro %}
+
+{% macro sel(name, options, current, ro=False, empty=True, empty_label="") %}
+{% if ro %}<div class="o-ro">{% for v, l in options %}{% if v == current %}{{ l }}{% endif %}{% endfor %}</div>
+{% else %}<select name="{{ name }}" class="form-select form-select-sm">{% if empty %}<option value="">{{ empty_label }}</option>{% endif %}
+{% for v, l in options %}<option value="{{ v }}" {{ 'selected' if v == current }}>{{ l }}</option>{% endfor %}</select>{% endif %}
+{% endmacro %}
+
+{% macro chk(name, value, ro=False, label="") %}
+<div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" name="{{ name }}" id="chk_{{ name }}" {{ 'checked' if value }} {{ 'disabled' if ro }}>{% if label %}<label class="form-check-label small" for="chk_{{ name }}">{{ label }}</label>{% endif %}</div>
+{% endmacro %}
+
+{% macro chatter(messages, action_url) %}
+<div class="o-chatter mt-3" id="chatter">
+  <form method="post" action="{{ action_url }}" class="d-flex gap-2 mb-3 no-print">{{ csrf() }}
+    <input type="hidden" name="action" value="note">
+    <input name="body" class="form-control form-control-sm" placeholder="Registra una nota interna…">
+    <button class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-chat-left-text"></i> Registra nota</button>
+  </form>
+  {% for m in messages %}
+  <div class="o-msg {{ m.message_type }}">
+    <div class="meta"><strong>{{ m.author or 'Sistema' }}</strong> · {{ m.date|data('%d/%m/%Y %H:%M') }} UTC
+      {% if m.message_type == 'email' %}<i class="bi bi-envelope"></i>{% endif %}</div>
+    {% if m.body %}<div>{{ m.body }}</div>{% endif %}
+    {% for t in (m.tracking or '').split('\n') if t %}<div class="small"><i class="bi bi-arrow-right-short"></i> {{ t }}</div>{% endfor %}
+  </div>
+  {% else %}<div class="text-muted small">Nessun messaggio.</div>{% endfor %}
+</div>
+{% endmacro %}
+
+{% macro money(v) %}<span class="{{ 'neg' if v and v < 0 }}">{{ v|euro }}</span>{% endmacro %}

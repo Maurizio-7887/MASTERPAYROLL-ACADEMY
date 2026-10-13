@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, badge %}
+{% block title %}Contratti{% endblock %}
+{% block controlpanel %}{% call cp([("Contratti", None)], "hr.version") %}<a href="{{ url_for('main.contract') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuovo</a>{% endcall %}{% endblock %}
+{% block content %}
+<div class="o-filters btn-group btn-group-sm mb-2">
+  <a class="btn btn-outline-secondary {{ 'active' if not stato }}" href="{{ url_for('main.contracts') }}">Tutti</a>
+  {% for k, l in states %}<a class="btn btn-outline-secondary {{ 'active' if stato == k }}" href="?state={{ k }}">{{ l }}</a>{% endfor %}
+</div>
+<div class="o-list table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Contratto</th><th>Dipendente</th><th>Tipo</th><th>Livello</th><th>Dal</th><th>Al</th><th>Struttura stipendio</th><th>Pagamento</th><th class="num">Paga base</th><th class="num">RAL</th><th>Stato</th></tr></thead>
+  <tbody>{% for c in rows %}
+    <tr class="click" data-href="{{ url_for('main.contract', con_id=c.id) }}"><td>{{ c.name }}</td><td>{{ c.employee.name }}</td><td class="small">{{ c.contract_type }}</td><td>{{ c.livello.codice if c.livello }}</td>
+      <td>{{ c.date_start|data }}</td><td>{{ c.date_end|data }}</td><td class="small">{{ c.struct.code if c.struct }}</td><td class="small">{{ SCHEDULE_PAY.get(c.schedule_pay) }}</td>
+      <td class="num">{{ c.wage|euro }}</td><td class="num">{{ c.ral|euro }}</td><td>{{ badge(c.state, CONTRACT_STATES) }}</td></tr>
+  {% else %}<tr><td colspan="11" class="text-muted p-3">Nessun contratto.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

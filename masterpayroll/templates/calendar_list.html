@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Orari di lavoro{% endblock %}
+{% block controlpanel %}{% call cp([("Orari di lavoro", None)], "resource.calendar") %}<a href="{{ url_for('main.calendar') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuovo</a>{% endcall %}{% endblock %}
+{% block content %}
+<div class="o-list"><table class="table table-sm table-hover">
+  <thead><tr><th>Nome</th><th class="num">Ore al giorno</th><th class="num">Ore settimanali</th><th class="num">Fasce</th></tr></thead>
+  <tbody>{% for c in rows %}<tr class="click" data-href="{{ url_for('main.calendar', cal_id=c.id) }}"><td>{{ c.name }}</td><td class="num">{{ c.hours_per_day|num }}</td><td class="num">{{ c.hours_per_week|num }}</td><td class="num">{{ c.attendance_ids|length }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="small text-muted mt-2">L'orario determina i giorni e le ore della riga <code>WORK100</code> dei giorni lavorati e quante ore vale ogni giorno di assenza.</p>
+{% endblock %}

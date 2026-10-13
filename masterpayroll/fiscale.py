@@ -1,15 +1,17 @@
-"""Funzioni fiscali italiane usate dalle formule delle regole salariali.
+"""Strumenti fiscali italiani messi a disposizione delle regole come ``tools.xxx``.
 
-ATTENZIONE - USO DIDATTICO: i valori riproducono la normativa come nota
-al momento della scrittura (IRPEF a 3 scaglioni, detrazioni art. 13 TUIR,
-cuneo fiscale L. 207/2024). Gli scaglioni IRPEF sono modificabili dalla
-pagina "Tabelle"; gli altri importi sono qui, ben visibili, per poterli
-spiegare in aula. Prima di usarli fuori dall'aula vanno verificati.
+In Odoo il metodo ``hr.payslip._get_tools_dict()`` esiste proprio perché le
+localizzazioni aggiungano funzioni utili alle regole: qui la localizzazione
+italiana aggiunge IRPEF, detrazioni, cuneo fiscale e trattamento integrativo.
+
+USO DIDATTICO: valori secondo la normativa nota al momento della scrittura
+(IRPEF 23/33/43% dal 2026, detrazioni artt. 12-13 TUIR, cuneo fiscale
+L. 207/2024). Gli scaglioni si modificano dalla pagina Tabelle; tutto il resto
+è qui, leggibile, per poterlo spiegare e verificare in aula.
 """
+from .safe_eval import _round_half_up
 
-# Scaglioni di default (modificabili per ambiente nella pagina Tabelle).
 SCAGLIONI_IRPEF_DEFAULT = [
-    # (da, a, aliquota %)   a=None significa "oltre"
     (0, 28000, 23.0),
     (28000, 50000, 33.0),
     (50000, None, 43.0),
@@ -31,17 +33,14 @@ def irpef_annua(reddito, scaglioni=None):
 
 def aliquota_marginale(reddito, scaglioni=None):
     scaglioni = scaglioni or SCAGLIONI_IRPEF_DEFAULT
-    for da, a, aliquota in scaglioni:
+    for _da, a, aliquota in scaglioni:
         if a is None or reddito <= a:
             return aliquota
     return scaglioni[-1][2]
 
 
 def detrazione_lavoro(reddito):
-    """Detrazione annua per lavoro dipendente (art. 13 c.1 TUIR).
-
-    Valori per contratto a tempo indeterminato, 365 giorni di lavoro.
-    """
+    """Detrazione annua per lavoro dipendente (art. 13 c.1 TUIR), 365 giorni."""
     r = float(reddito)
     if r <= 0:
         return 0.0
@@ -58,26 +57,75 @@ def detrazione_lavoro(reddito):
     return max(0.0, d)
 
 
-def cuneo_indennita(reddito):
-    """Somma esente (non tassata) per redditi fino a 20.000 euro (L. 207/2024).
+def detrazione_coniuge(reddito):
+    """Detrazione annua per coniuge a carico (art. 12 c.1 lett. a TUIR)."""
+    r = float(reddito)
+    if r <= 15000:
+        d = 800 - 110 * r / 15000
+    elif r <= 40000:
+        d = 690
+        for lo, hi, extra in ((29000, 29200, 10), (29200, 34700, 20), (34700, 35000, 30),
+                              (35000, 35100, 20), (35100, 35200, 10)):
+            if lo < r <= hi:
+                d += extra
+    elif r <= 80000:
+        d = 690 * (80000 - r) / 40000
+    else:
+        d = 0.0
+    return max(0.0, d)
 
-    Percentuale applicata al reddito di lavoro dipendente annuo.
-    Restituisce l'importo ANNUO.
+
+def detrazione_figli(reddito, n_figli):
+    """Detrazione annua per figli a carico dai 21 ai 30 anni (dal 2025): 950 € ciascuno,
+    ridotta con coefficiente (95.000 + 15.000 per ogni figlio oltre il primo - reddito)."""
+    if n_figli <= 0:
+        return 0.0
+    base = 95000 + 15000 * (n_figli - 1)
+    coeff = max(0.0, (base - float(reddito)) / base)
+    return 950 * n_figli * coeff
+
+
+def detrazione_altri(reddito, n):
+    """Detrazione annua per altri familiari a carico (ascendenti conviventi): 750 € ciascuno."""
+    if n <= 0:
+        return 0.0
+    return 750 * n * max(0.0, (80000 - float(reddito)) / 80000)
+
+
+def detrazioni_familiari(reddito, familiari, ref_date=None):
+    """Somma delle detrazioni annue per i familiari a carico.
+
+    I figli sotto i 21 anni non danno detrazione: per loro c'è l'Assegno Unico (INPS).
+    La percentuale di carico (50% / 100%) riduce la detrazione del figlio.
     """
+    from datetime import date
+    ref_date = ref_date or date.today()
+    totale = 0.0
+    figli = [f for f in familiari if f.relazione == "figlio"]
+    figli_validi = [f for f in figli if f.eta_al(ref_date) is not None and 21 <= f.eta_al(ref_date) < 30]
+    if figli_validi:
+        unitaria = detrazione_figli(reddito, len(figli_validi)) / len(figli_validi)
+        totale += sum(unitaria * (f.percentuale or 100) / 100 for f in figli_validi)
+    if any(f.relazione == "coniuge" for f in familiari):
+        totale += detrazione_coniuge(reddito)
+    altri = [f for f in familiari if f.relazione == "altro"]
+    if altri:
+        unitaria = detrazione_altri(reddito, len(altri)) / len(altri)
+        totale += sum(unitaria * (f.percentuale or 100) / 100 for f in altri)
+    return totale
+
+
+def cuneo_indennita(reddito):
+    """Somma esente annua del cuneo fiscale (redditi fino a 20.000 €)."""
     r = float(reddito)
     if r <= 0 or r > 20000:
         return 0.0
-    if r <= 8500:
-        perc = 7.1
-    elif r <= 15000:
-        perc = 5.3
-    else:
-        perc = 4.8
+    perc = 7.1 if r <= 8500 else 5.3 if r <= 15000 else 4.8
     return r * perc / 100
 
 
 def cuneo_detrazione(reddito):
-    """Ulteriore detrazione annua per redditi tra 20.000 e 40.000 euro."""
+    """Ulteriore detrazione annua del cuneo fiscale (20.000 - 40.000 €)."""
     r = float(reddito)
     if r <= 20000 or r > 40000:
         return 0.0
@@ -87,37 +135,40 @@ def cuneo_detrazione(reddito):
 
 
 def trattamento_integrativo_spetta(reddito, scaglioni=None):
-    """Trattamento integrativo (ex bonus 100 euro) - versione base.
-
-    Spetta se reddito <= 15.000 e l'imposta lorda supera la detrazione
-    per lavoro dipendente diminuita di 75 euro (non si è "incapienti").
-    """
+    """Trattamento integrativo (ex bonus 100 €): reddito fino a 15.000 € e non incapiente."""
     r = float(reddito)
     if r <= 0 or r > 15000:
         return False
     return irpef_annua(r, scaglioni) > detrazione_lavoro(r) - 75
 
 
-def make_helpers(scaglioni=None):
-    """Funzioni messe a disposizione delle formule (con gli scaglioni dell'ambiente)."""
+def make_helpers(scaglioni=None, ref_date=None):
     return {
+        "arrotonda": _round_half_up,
         "irpef_annua": lambda reddito: irpef_annua(reddito, scaglioni),
         "aliquota_marginale": lambda reddito: aliquota_marginale(reddito, scaglioni),
         "detrazione_lavoro": detrazione_lavoro,
+        "detrazione_coniuge": detrazione_coniuge,
+        "detrazione_figli": detrazione_figli,
+        "detrazioni_familiari": lambda reddito, familiari: detrazioni_familiari(
+            reddito, [getattr(f, "_record", f) for f in familiari], ref_date),
         "cuneo_indennita": cuneo_indennita,
         "cuneo_detrazione": cuneo_detrazione,
-        "trattamento_integrativo_spetta":
-            lambda reddito: trattamento_integrativo_spetta(reddito, scaglioni),
+        "trattamento_integrativo_spetta": lambda reddito: trattamento_integrativo_spetta(reddito, scaglioni),
     }
 
 
 HELPER_DOCS = [
-    ("irpef_annua(reddito)", "Imposta lorda annua calcolata sugli scaglioni della pagina Tabelle."),
-    ("aliquota_marginale(reddito)", "Aliquota % dello scaglione in cui cade il reddito."),
-    ("detrazione_lavoro(reddito)", "Detrazione annua per lavoro dipendente (art. 13 TUIR)."),
-    ("cuneo_indennita(reddito)", "Somma esente annua del cuneo fiscale (redditi fino a 20.000)."),
-    ("cuneo_detrazione(reddito)", "Ulteriore detrazione annua del cuneo fiscale (20.000-40.000)."),
-    ("trattamento_integrativo_spetta(reddito)", "Vero/Falso: spetta il trattamento integrativo?"),
-    ("min(a, b) · max(a, b) · abs(x)", "Minimo, massimo, valore assoluto."),
-    ("round(x, n) · arrotonda(x, n)", "Arrotondamento commerciale a n decimali (default 2)."),
+    ("tools.arrotonda(x, n=2)", "Arrotondamento commerciale a n decimali (0,005 → 0,01). Anche senza 'tools.'."),
+    ("tools.irpef_annua(reddito)", "Imposta lorda annua sugli scaglioni della pagina Tabelle."),
+    ("tools.aliquota_marginale(reddito)", "Aliquota % dello scaglione in cui cade il reddito."),
+    ("tools.detrazione_lavoro(reddito)", "Detrazione annua per lavoro dipendente (art. 13 TUIR)."),
+    ("tools.detrazioni_familiari(reddito, employee.familiari)",
+     "Detrazioni annue per coniuge, figli 21-30 anni, altri familiari a carico."),
+    ("tools.detrazione_coniuge(reddito)", "Detrazione annua per il coniuge a carico."),
+    ("tools.detrazione_figli(reddito, n)", "Detrazione annua per n figli a carico dai 21 ai 30 anni."),
+    ("tools.cuneo_indennita(reddito)", "Somma esente annua del cuneo fiscale (fino a 20.000 €)."),
+    ("tools.cuneo_detrazione(reddito)", "Ulteriore detrazione annua del cuneo fiscale (20.000-40.000 €)."),
+    ("tools.trattamento_integrativo_spetta(reddito)", "Vero/Falso: spetta il trattamento integrativo?"),
+    ("tools.math.floor(x) · ceil · sqrt …", "Funzioni matematiche (come tools.math in Odoo)."),
 ]

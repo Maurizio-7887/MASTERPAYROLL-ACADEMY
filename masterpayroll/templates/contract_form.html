@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, row, statusbar, chatter %}
+{% block title %}{{ c.name if c else 'Nuovo contratto' }}{% endblock %}
+{% block controlpanel %}{{ cp([("Contratti", url_for('main.contracts')), (c.name if c else 'Nuovo', None)], "hr.version") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+<div class="o-form-header">
+  <div class="d-flex gap-1 flex-wrap"><button class="btn btn-sm btn-primary" name="action" value="save">Salva</button>
+    {% if c %}
+      {% if c.state == 'draft' %}<button class="btn btn-sm btn-success" name="action" value="open">In corso</button>{% endif %}
+      {% if c.state == 'open' %}<button class="btn btn-sm btn-secondary" name="action" value="close">Scaduto</button>{% endif %}
+      {% if c.state in ('draft','open') %}<button class="btn btn-sm btn-outline-secondary" name="action" value="cancel">Annulla</button>{% endif %}
+      {% if c.state in ('close','cancel') %}<button class="btn btn-sm btn-outline-secondary" name="action" value="draft">Riporta a nuovo</button>{% endif %}
+      <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare il contratto?"><i class="bi bi-trash"></i></button>
+    {% endif %}</div>
+  {{ statusbar(states[:3] + ([('cancel','Annullato')] if c and c.state == 'cancel' else []), c.state if c else 'draft') }}
+</div>
+<div class="o-sheet">
+  <label class="small text-muted">Riferimento contratto</label>
+  <input name="name" value="{{ c.name if c }}" class="form-control mb-3" style="font-size:1.2rem;font-weight:600" placeholder="(automatico)">
+  <div class="row"><div class="col-lg-6">
+    {% call row("Dipendente") %}{% if c %}<div class="o-ro"><a href="{{ url_for('main.employee', emp_id=c.employee_id) }}">{{ c.employee.name }}</a></div>
+      {% else %}<select name="employee_id" class="form-select form-select-sm" required><option value=""></option>{% for e in employees %}<option value="{{ e.id }}" {{ 'selected' if emp and emp.id == e.id }}>{{ e.name }}</option>{% endfor %}</select>{% endif %}{% endcall %}
+    {% call row("Tipo di contratto") %}<select name="contract_type" class="form-select form-select-sm">{% for t in types %}<option {{ 'selected' if c and c.contract_type == t }}>{{ t }}</option>{% endfor %}</select>{% endcall %}
+    {% call row("Mansione") %}<input name="job_title" value="{{ c.job_title if c else (emp.job_title if emp) }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Reparto") %}<input name="department" value="{{ c.department if c else (emp.department if emp) }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("CCNL") %}<input name="ccnl" value="{{ c.ccnl if c else ws.ccnl }}" class="form-control form-control-sm">{% endcall %}
+  </div><div class="col-lg-6">
+    {% call row("Data inizio contratto") %}<input type="date" name="date_start" value="{{ c.date_start.isoformat() if c }}" class="form-control form-control-sm" required>{% endcall %}
+    {% call row("Data fine contratto") %}<input type="date" name="date_end" value="{{ c.date_end.isoformat() if c and c.date_end }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Fine periodo di prova") %}<input type="date" name="trial_date_end" value="{{ c.trial_date_end.isoformat() if c and c.trial_date_end }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Orario di lavoro") %}<select name="resource_calendar_id" class="form-select form-select-sm"><option value=""></option>{% for cal in calendars %}<option value="{{ cal.id }}" {{ 'selected' if (c and c.resource_calendar_id == cal.id) or (not c and emp and emp.resource_calendar_id == cal.id) }}>{{ cal.name }}</option>{% endfor %}</select>{% endcall %}
+  </div></div>
+  <ul class="nav nav-tabs o-notebook mt-3">
+    <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#t-salary">Informazioni sullo stipendio</button></li>
+    <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#t-notes">Note</button></li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="t-salary"><div class="row"><div class="col-lg-6">
+      <div class="small text-muted mb-1">Campi del modulo Payroll</div>
+      {% call row("Struttura stipendio") %}<select name="struct_id" class="form-select form-select-sm"><option value=""></option>{% for s in structures %}<option value="{{ s.id }}" {{ 'selected' if (c and c.struct_id == s.id) or (not c and s.code == 'IT_ORD') }}>{{ s.code }} · {{ s.name }}</option>{% endfor %}</select>{% endcall %}
+      {% call row("Pagamento pianificato") %}<select name="schedule_pay" class="form-select form-select-sm">{% for k, l in SCHEDULE_PAY.items() %}<option value="{{ k }}" {{ 'selected' if (c and c.schedule_pay == k) or (not c and k == 'monthly') }}>{{ l }}</option>{% endfor %}</select>{% endcall %}
+      {% call row("Paga base mensile (wage)", "contract.wage nelle regole: il minimo tabellare del livello") %}<input name="wage" value="{{ c.wage|inval if c }}" class="form-control form-control-sm text-end">{% endcall %}
+      <div class="small text-muted mt-3 mb-1">Localizzazione italiana</div>
+      {% call row("Livello CCNL") %}<select name="livello_id" id="livello_sel" class="form-select form-select-sm"><option value=""></option>{% for l in livelli %}<option value="{{ l.id }}" data-min="{{ l.minimo }}" data-scatto="{{ l.scatto_importo }}" {{ 'selected' if c and c.livello_id == l.id }}>{{ l.codice }} · {{ l.descrizione }}</option>{% endfor %}</select>
+        <div class="form-check small mt-1"><input class="form-check-input" type="checkbox" name="usa_tabella" id="usa_tabella" {{ 'checked' if not c }}><label class="form-check-label" for="usa_tabella">prendi paga base e scatto dalla tabella livelli</label></div>{% endcall %}
+      {% call row("Superminimo €") %}<input name="superminimo" value="{{ c.superminimo|inval if c else 0 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% call row("Scatti di anzianità (n.)") %}<input name="scatti_n" type="number" min="0" value="{{ c.scatti_n if c else 0 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% call row("Importo scatto €") %}<input name="scatto_importo" value="{{ c.scatto_importo|inval if c }}" class="form-control form-control-sm text-end">{% endcall %}
+    </div><div class="col-lg-6">
+      {% call row("Part-time %") %}<input name="part_time" value="{{ c.part_time|inval if c else 100 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% call row("Mensilità annue") %}<input name="mensilita" value="{{ c.mensilita|inval if c else 13 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% call row("Divisore orario") %}<input name="divisore_orario" value="{{ c.divisore_orario|inval if c else 173 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% call row("Rata addizionale regionale €") %}<input name="add_reg_rata" value="{{ c.add_reg_rata|inval if c else 0 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% call row("Rata addizionale comunale €") %}<input name="add_com_rata" value="{{ c.add_com_rata|inval if c else 0 }}" class="form-control form-control-sm text-end">{% endcall %}
+      {% if c %}<div class="border rounded p-2 bg-light small mt-2">
+        Retribuzione mensile: <strong>€ {{ c.retribuzione_mensile|euro }}</strong> · RAL: <strong>€ {{ c.ral|euro }}</strong><br>
+        <span class="text-muted">(paga base + superminimo + scatti) × part-time; RAL = × mensilità</span></div>{% endif %}
+    </div></div></div>
+    <div class="tab-pane fade" id="t-notes"><textarea name="notes" class="form-control form-control-sm" rows="4">{{ c.notes if c }}</textarea></div>
+  </div>
+</div>
+</form>
+{% if c %}{{ chatter(messages, url_for('main.contract', con_id=c.id)) }}{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('livello_sel').addEventListener('change', function () {
+  var o = this.selectedOptions[0];
+  if (o && o.dataset.min && document.getElementById('usa_tabella').checked) {
+    document.querySelector('[name=wage]').value = o.dataset.min;
+    document.querySelector('[name=scatto_importo]').value = o.dataset.scatto;
+  }
+});
+</script>
+{% endblock %}

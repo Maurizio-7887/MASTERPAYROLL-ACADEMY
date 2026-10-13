@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp %}
+{% block title %}Impostazioni{% endblock %}
+{% block controlpanel %}{{ cp([("Impostazioni", None)], "res.config.settings") }}{% endblock %}
+{% block content %}
+<form method="post" class="o-sheet alone" style="max-width:860px">{{ csrf() }}
+  <h5 class="page-title">Libro paga</h5>
+  <p class="small text-muted">Sono le stesse opzioni della pagina Impostazioni del modulo Payroll di Odoo (parametri <code>payroll.*</code>), valide per la tua azienda.</p>
+  <div class="row g-3">
+  {% for f, label, help in settings %}
+    <div class="col-md-6"><div class="d-flex gap-2 border rounded p-2 h-100">
+      <input class="form-check-input mt-1" type="checkbox" name="{{ f }}" id="{{ f }}" {{ 'checked' if ws[f] }}>
+      <label for="{{ f }}"><strong>{{ label }}</strong><div class="small text-muted">{{ help }}</div><div class="o-model mt-1 d-inline-block">payroll.{{ f }}</div></label>
+    </div></div>
+  {% endfor %}
+    <div class="col-md-6"><div class="d-flex gap-2 border rounded p-2 h-100 text-muted">
+      <input class="form-check-input mt-1" type="checkbox" disabled>
+      <div><strong>Contabilità paghe</strong><div class="small">Modulo separato <code>payroll_account</code> (registrazioni contabili delle buste): non incluso.</div></div>
+    </div></div>
+  </div>
+  <button class="btn btn-primary mt-3">Salva</button>
+</form>
+{% endblock %}

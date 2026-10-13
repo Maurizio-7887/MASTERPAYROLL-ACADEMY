@@ -12,7 +12,7 @@ from flask import (Blueprint, Response, abort, flash, redirect, render_template,
 from flask_login import current_user
 
 from . import ensure_workspace, login_manager
-from .models import (Attivita, Cedolino, Esercitazione, EsercitazioneSvolta, User, db)
+from .models import (Attivita, Esercitazione, EsercitazioneSvolta, Payslip, User, db)
 
 bp = Blueprint("docente", __name__, url_prefix="/docente")
 
@@ -153,8 +153,8 @@ def index():
     for u in allievi:
         ore, _, n_sess = ore_allievo(u.id, da, a)
         ws_id = u.workspace.id if u.workspace else None
-        n_ced = Cedolino.query.filter_by(workspace_id=ws_id).filter(
-            Cedolino.stato != "bozza").count() if ws_id else 0
+        n_ced = Payslip.query.filter_by(workspace_id=ws_id).filter(
+            Payslip.state.in_(["verify", "done"])).count() if ws_id else 0
         n_svolte = EsercitazioneSvolta.query.filter_by(user_id=u.id).count()
         righe.append({"u": u, "ore": ore, "sessioni": n_sess, "cedolini": n_ced, "svolte": n_svolte})
     return render_template("docente.html", righe=righe, credenziali=credenziali, n_es=n_es, da=da, a=a)

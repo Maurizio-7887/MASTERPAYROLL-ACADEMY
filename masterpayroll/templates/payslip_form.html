@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, statusbar, row, chatter, money %}
+{% block title %}{{ slip.number or 'Bozza' }} · {{ slip.employee.name }}{% endblock %}
+{% block controlpanel %}
+{{ cp([("Buste paga dipendente", url_for('main.payslips')), ((slip.number or 'Nuovo') ~ ' · ' ~ slip.employee.name, None)], "hr.payslip") }}
+{% endblock %}
+{% block content %}
+{% set st = slip.state %}
+<form method="post" id="slipform">{{ csrf() }}
+<input type="hidden" name="tab" id="tabfield" value="{{ tab }}">
+<div class="o-form-header">
+  <div class="d-flex flex-wrap gap-1">
+    {% if st == 'verify' %}<button class="btn btn-sm btn-primary" name="action" value="action_payslip_done">Conferma</button>{% endif %}
+    {% if st == 'done' %}<button class="btn btn-sm btn-secondary" name="action" value="refund_sheet" data-confirm="Creare lo storno (nota di credito) di questa busta?">Storno</button>{% endif %}
+    {% if st in ('draft','verify') %}<button class="btn btn-sm {{ 'btn-primary' if st == 'draft' else 'btn-secondary' }}" name="action" value="compute_sheet">Calcola scheda</button>{% endif %}
+    {% if st in ('cancel','verify') %}<button class="btn btn-sm btn-secondary" name="action" value="action_payslip_draft">Imposta a bozza</button>{% endif %}
+    {% if st in ('draft','verify') or (st == 'done' and ws.allow_cancel_payslips) %}<button class="btn btn-sm btn-secondary" name="action" value="action_payslip_cancel" data-confirm="Annullare (rifiutare) la busta paga?">Annulla busta paga</button>{% endif %}
+    {% if st in ('draft','verify') %}<button class="btn btn-sm btn-secondary" name="action" value="onchange_employee" title="Ricalcola contratto, struttura, giorni lavorati e apporti">Riestrai dati busta paga</button>{% endif %}
+    <div class="btn-group">
+      <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-printer"></i> Stampa</button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" target="_blank" href="{{ url_for('main.payslip_pdf', slip_id=slip.id) }}">Busta paga</a></li>
+        <li><a class="dropdown-item" target="_blank" href="{{ url_for('main.payslip_pdf', slip_id=slip.id, report='details') }}">Dettaglio busta paga</a></li>
+      </ul>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" name="action" value="email" {{ 'disabled' if not slip.line_ids }}><i class="bi bi-envelope"></i> Invia per email</button>
+    {% if st in ('draft','cancel') %}<button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare la busta paga?"><i class="bi bi-trash"></i></button>{% endif %}
+  </div>
+  {{ statusbar([('draft','Bozza'),('verify','In attesa'),('done','Completata')] + ([('cancel','Rifiutata')] if st == 'cancel' else []), st) }}
+</div>
+<div class="o-sheet">
+  <div class="d-flex justify-content-end gap-2 mb-2">
+    <a class="o-smart" href="{{ url_for('main.payslip_lines_of', slip_id=slip.id) }}"><i class="bi bi-list-ol"></i><span><b>{{ slip.payslip_count }}</b> Dettagli calcolo busta paga</span></a>
+    <a class="o-smart" href="{{ url_for('main.employee', emp_id=slip.employee_id) }}"><i class="bi bi-person"></i><span>Dipendente</span></a>
+  </div>
+  {% if slip.credit_note %}<div class="alert alert-warning py-1 small mb-2"><i class="bi bi-arrow-counterclockwise"></i> Nota di credito: nei riepiloghi i suoi importi si sottraggono.{% if refund_of %} È lo storno di <a href="{{ url_for('main.payslip', slip_id=refund_of.id) }}">{{ refund_of.number }}</a>.{% endif %}</div>{% endif %}
+  {% if slip.refunded %}<div class="alert alert-secondary py-1 small mb-2">Questa busta è stata stornata con <a href="{{ url_for('main.payslip', slip_id=slip.refunded.id) }}">{{ slip.refunded.number }}</a>.</div>{% endif %}
+  <div class="small text-muted">Dipendente</div>
+  <div class="o-title mb-3">{{ slip.employee.name }}</div>
+  <div class="row">
+    <div class="col-lg-6">
+      {% call row("Periodo") %}
+        {% if editable %}<div class="d-flex gap-1"><input type="date" name="date_from" value="{{ slip.date_from.isoformat() }}" class="form-control form-control-sm">
+          <input type="date" name="date_to" value="{{ slip.date_to.isoformat() }}" class="form-control form-control-sm"></div>
+        {% else %}<div class="o-ro">{{ slip.date_from|data }} - {{ slip.date_to|data }}</div>{% endif %}
+      {% endcall %}
+      {% call row("Contratto") %}
+        {% if editable %}<select name="contract_id" class="form-select form-select-sm"><option value=""></option>
+          {% for c in contracts %}<option value="{{ c.id }}" {{ 'selected' if c.id == slip.contract_id }}>{{ c.name }}</option>{% endfor %}</select>
+        {% else %}<div class="o-ro">{% if slip.contract %}<a href="{{ url_for('main.contract', con_id=slip.contract_id) }}">{{ slip.contract.name }}</a>{% endif %}</div>{% endif %}
+      {% endcall %}
+      {% call row("Struttura") %}
+        {% if editable %}<select name="struct_id" class="form-select form-select-sm"><option value=""></option>
+          {% for s in structures %}<option value="{{ s.id }}" {{ 'selected' if s.id == slip.struct_id }}>{{ s.code }} · {{ s.name }}</option>{% endfor %}</select>
+        {% else %}<div class="o-ro">{% if slip.struct %}<a href="{{ url_for('main.structure', st_id=slip.struct_id) }}">{{ slip.struct.code }} · {{ slip.struct.name }}</a>{% endif %}</div>{% endif %}
+      {% endcall %}
+    </div>
+    <div class="col-lg-6">
+      {% call row("Riferimento") %}<div class="o-ro">{{ slip.number or '(assegnato al calcolo)' }}</div>{% endcall %}
+      {% call row("Nome busta paga") %}{% if editable %}<input name="name" value="{{ slip.name }}" class="form-control form-control-sm">{% else %}<div class="o-ro">{{ slip.name }}</div>{% endif %}{% endcall %}
+      {% call row("Nota di credito") %}<input type="checkbox" class="form-check-input" name="credit_note" {{ 'checked' if slip.credit_note }} {{ 'disabled' if not editable }}>{% endcall %}
+      {% call row("Gruppo buste paga") %}
+        {% if editable %}<select name="payslip_run_id" class="form-select form-select-sm"><option value=""></option>
+          {% for r in runs %}<option value="{{ r.id }}" {{ 'selected' if r.id == slip.payslip_run_id }}>{{ r.name }}</option>{% endfor %}</select>
+        {% else %}<div class="o-ro">{% if slip.payslip_run %}<a href="{{ url_for('main.run', run_id=slip.payslip_run_id) }}">{{ slip.payslip_run.name }}</a>{% endif %}</div>{% endif %}
+      {% endcall %}
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs o-notebook mt-3" role="tablist">
+    {% for k, l in [('input','Giorni lavorati e apporti'),('computation','Calcolo stipendio'),('categories','Dettaglio per categoria'),('accounting','Informazioni contabili')] %}
+    <li class="nav-item"><button type="button" class="nav-link {{ 'active' if tab == k }}" data-bs-toggle="tab" data-bs-target="#t-{{ k }}" data-tab="{{ k }}">{{ l }}</button></li>
+    {% endfor %}
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade {{ 'show active' if tab == 'input' }}" id="t-input">
+      <h6 class="mb-1">Giorni lavorati <span class="o-model">hr.payslip.worked_days</span></h6>
+      <p class="small text-muted mb-2">Calcolati dall'orario di lavoro del contratto, dalle festività e dalle assenze approvate. Nelle regole: <code>worked_days.CODICE.number_of_days</code> / <code>.number_of_hours</code>.</p>
+      <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Descrizione</th><th>Codice</th><th class="num">Sequenza</th><th class="num">Numero di giorni</th><th class="num">Numero di ore</th>{% if editable %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+        {% for w in slip.worked_days_line_ids %}
+          {% if editable %}
+          <tr><td><input name="wd_name_{{ w.id }}" value="{{ w.name }}" class="form-control form-control-sm"></td>
+            <td><input name="wd_code_{{ w.id }}" value="{{ w.code }}" class="form-control form-control-sm code" style="width:100px"></td>
+            <td><input name="wd_seq_{{ w.id }}" value="{{ w.sequence }}" class="form-control form-control-sm cell-input" style="width:70px"></td>
+            <td><input name="wd_days_{{ w.id }}" value="{{ w.number_of_days|inval }}" class="form-control form-control-sm cell-input"></td>
+            <td><input name="wd_hours_{{ w.id }}" value="{{ w.number_of_hours|inval }}" class="form-control form-control-sm cell-input"></td>
+            <td><input type="checkbox" class="form-check-input" name="wd_del_{{ w.id }}" title="Elimina riga"> <i class="bi bi-trash text-muted small"></i></td></tr>
+          {% else %}
+          <tr><td>{{ w.name }}</td><td class="code">{{ w.code }}</td><td class="num">{{ w.sequence }}</td><td class="num">{{ w.number_of_days|num }}</td><td class="num">{{ w.number_of_hours|num }}</td></tr>
+          {% endif %}
+        {% else %}<tr><td colspan="6" class="text-muted small">Nessuna riga: premi "Riestrai dati busta paga" (serve un contratto con orario di lavoro).</td></tr>{% endfor %}
+        {% if editable %}
+          <tr class="table-light"><td><input name="wd_new_name" class="form-control form-control-sm" placeholder="Aggiungi riga…"></td>
+            <td><input name="wd_new_code" class="form-control form-control-sm code" style="width:100px" placeholder="CODICE"></td>
+            <td><input name="wd_new_seq" value="10" class="form-control form-control-sm cell-input" style="width:70px"></td>
+            <td><input name="wd_new_days" class="form-control form-control-sm cell-input"></td><td><input name="wd_new_hours" class="form-control form-control-sm cell-input"></td><td></td></tr>
+        {% endif %}
+        </tbody></table></div>
+      <h6 class="mb-1 mt-3">Apporti <span class="o-model">hr.payslip.input</span></h6>
+      <p class="small text-muted mb-2">Creati dagli <em>apporti</em> delle regole della struttura. Inserisci qui le variabili del mese; nelle regole: <code>inputs.CODICE.amount</code>.</p>
+      <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Descrizione</th><th>Codice</th><th class="num">Importo</th><th class="num">Quantità importo</th>{% if editable %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+        {% for i in slip.input_line_ids %}
+          <tr><td>{{ i.name }}</td><td class="code">{{ i.code }}</td>
+          {% if editable %}
+            <td><input name="in_amount_{{ i.id }}" value="{{ i.amount|inval if i.amount else '' }}" class="form-control form-control-sm cell-input ms-auto" style="max-width:120px"></td>
+            <td><input name="in_qty_{{ i.id }}" value="{{ i.amount_qty|inval if i.amount_qty else '' }}" class="form-control form-control-sm cell-input ms-auto" style="max-width:120px"></td>
+            <td><input type="checkbox" class="form-check-input" name="in_del_{{ i.id }}" title="Elimina riga"> <i class="bi bi-trash text-muted small"></i></td>
+          {% else %}<td class="num">{{ i.amount|num }}</td><td class="num">{{ i.amount_qty|num }}</td>{% endif %}</tr>
+        {% else %}<tr><td colspan="5" class="text-muted small">Nessun apporto previsto dalle regole della struttura.</td></tr>{% endfor %}
+        {% if editable %}
+          <tr class="table-light"><td><input name="in_new_name" class="form-control form-control-sm" placeholder="Aggiungi apporto…"></td>
+            <td><input name="in_new_code" class="form-control form-control-sm code" style="width:110px" placeholder="CODICE"></td>
+            <td><input name="in_new_amount" class="form-control form-control-sm cell-input ms-auto" style="max-width:120px"></td>
+            <td><input name="in_new_qty" class="form-control form-control-sm cell-input ms-auto" style="max-width:120px"></td><td></td></tr>
+        {% endif %}
+        </tbody></table></div>
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'computation' }}" id="t-computation">
+      <div class="d-flex flex-wrap gap-3 align-items-center mb-2 small">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="hide_child_lines" id="hcl" {{ 'checked' if slip.hide_child_lines }} onchange="this.form.querySelector('[name=action][value=save]').click()"><label for="hcl" class="form-check-label">Nascondi righe figlie</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="hide_invisible_lines" id="hil" {{ 'checked' if slip.hide_invisible_lines }} onchange="this.form.querySelector('[name=action][value=save]').click()"><label for="hil" class="form-check-label">Visualizza solo righe che appaiono nella busta paga</label></div>
+        {% if slip.compute_date %}<span class="text-muted">Calcolata il {{ slip.compute_date|data }}</span>{% endif %}
+      </div>
+      {% set lines = slip.dynamic_filtered_payslip_lines %}
+      {% set can_edit = ws.allow_edit_payslip_lines and editable %}
+      <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Codice</th><th>Nome</th><th>Categoria</th><th class="num">Quantità</th><th class="num">Tasso (%)</th><th class="num">Importo</th><th class="num">Totale</th><th>Registro</th></tr></thead>
+        <tbody>
+        {% for ln in lines %}
+          <tr class="{{ 'text-muted' if not ln.appears_on_payslip }} {{ 'fw-bold' if ln.category and ln.category.code in ('GROSS','NET') }}">
+            <td class="code {{ 'lvl-1' if ln.parent_rule_id }}">{% if ln.parent_rule_id %}↳ {% endif %}{{ ln.code }}</td>
+            {% if can_edit %}
+            <td><input name="ln_name_{{ ln.id }}" value="{{ ln.name }}" class="form-control form-control-sm"></td>
+            <td class="small">{{ ln.category.code if ln.category }}</td>
+            <td><input name="ln_qty_{{ ln.id }}" value="{{ ln.quantity|inval }}" class="form-control form-control-sm cell-input"></td>
+            <td><input name="ln_rate_{{ ln.id }}" value="{{ ln.rate|inval }}" class="form-control form-control-sm cell-input"></td>
+            <td><input name="ln_amount_{{ ln.id }}" value="{{ ln.amount|inval }}" class="form-control form-control-sm cell-input"></td>
+            {% else %}
+            <td>{{ ln.name }}{% if not ln.appears_on_payslip %} <i class="bi bi-eye-slash" title="Non appare nella busta paga"></i>{% endif %}</td>
+            <td class="small">{{ ln.category.code if ln.category }}</td>
+            <td class="num">{{ ln.quantity|num }}</td><td class="num">{{ ln.rate|num(4) }}</td><td class="num">{{ money(ln.amount) }}</td>
+            {% endif %}
+            <td class="num">{{ money(ln.total) }}</td><td class="small">{{ ln.register.name if ln.register }}</td>
+          </tr>
+        {% else %}<tr><td colspan="8" class="text-muted small">Busta non ancora calcolata: premi <strong>Calcola scheda</strong>.</td></tr>{% endfor %}
+        </tbody></table></div>
+      {% if can_edit and lines %}<button class="btn btn-sm btn-outline-primary" name="action" value="save_lines">Salva le righe modificate</button>{% endif %}
+      {% if not ws.allow_edit_payslip_lines and lines %}<p class="small text-muted">Totale = quantità × tasso × importo / 100. Le trattenute sono negative, come in Odoo.</p>{% endif %}
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'categories' }}" id="t-categories">
+      <p class="small text-muted">Somma delle righe per categoria (le categorie figlie si sommano anche nella categoria padre): sono i valori di <code>categories.CODICE</code> a fine calcolo.</p>
+      <table class="table table-sm" style="max-width:520px"><thead><tr><th>Categoria</th><th class="num">Totale</th></tr></thead>
+        {% for code, tot in cat_totals %}<tr><td class="code">{{ code }}</td><td class="num">{{ money(tot) }}</td></tr>{% else %}<tr><td class="text-muted small" colspan="2">Nessuna riga.</td></tr>{% endfor %}
+      </table>
+    </div>
+
+    <div class="tab-pane fade {{ 'show active' if tab == 'accounting' }}" id="t-accounting">
+      <div class="row"><div class="col-lg-6">
+        {% call row("Effettuato l'ordine di pagamento?", "Campo 'paid': lo imposta il modulo di contabilità paghe (payroll_account)") %}<input type="checkbox" class="form-check-input" disabled {{ 'checked' if slip.paid }}>{% endcall %}
+        {% call row("Data calcolo") %}<div class="o-ro">{{ slip.compute_date|data }}</div>{% endcall %}
+      </div></div>
+      <label class="form-label fw-semibold small mt-2">Nota interna</label>
+      <textarea name="note" class="form-control form-control-sm" rows="3">{{ slip.note or '' }}</textarea>
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2 align-items-center">
+    <button class="btn btn-sm btn-primary" name="action" value="save"><i class="bi bi-cloud-check"></i> Salva</button>
+    {% if not editable %}<span class="small text-muted">Busta {{ PAYSLIP_STATES[st]|lower }}: si possono modificare solo nota e opzioni di visualizzazione.</span>{% endif %}
+  </div>
+</div>
+</form>
+{{ chatter(messages, url_for('main.payslip', slip_id=slip.id)) }}
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-tab]').forEach(function (b) {
+  b.addEventListener('shown.bs.tab', function () { document.getElementById('tabfield').value = b.dataset.tab; });
+});
+</script>
+{% endblock %}

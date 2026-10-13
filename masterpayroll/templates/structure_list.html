@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Strutture stipendio{% endblock %}
+{% block controlpanel %}{% call cp([("Strutture stipendio", None)], "hr.payroll.structure") %}<a href="{{ url_for('main.structure') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuovo</a>{% endcall %}{% endblock %}
+{% block content %}
+<div class="o-list table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Riferimento</th><th>Nome</th><th>Padre</th><th class="num">Regole proprie</th><th>Descrizione</th></tr></thead>
+  <tbody>{% for s in rows %}
+    <tr class="click" data-href="{{ url_for('main.structure', st_id=s.id) }}"><td class="code fw-bold">{{ s.code }}</td><td>{{ s.name }}</td><td class="small">{{ s.parent.code if s.parent }}</td>
+      <td class="num">{{ s.rule_ids|length }}</td><td class="small text-muted">{{ s.note }}</td></tr>
+  {% else %}<tr><td colspan="6" class="text-muted p-3">Nessuna struttura.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="small text-muted mt-2">Una struttura eredita tutte le regole della struttura <strong>padre</strong> (e dei suoi padri). Le regole sono condivise: la stessa regola può stare in più strutture.</p>
+{% endblock %}

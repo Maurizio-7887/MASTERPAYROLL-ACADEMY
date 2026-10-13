@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Posta in uscita{% endblock %}
+{% block controlpanel %}{{ cp([("Posta in uscita", None)], "mail.mail") }}{% endblock %}
+{% block content %}
+{% if not smtp %}<div class="alert alert-info py-2 small">Invio simulato: nessun server SMTP configurato, quindi le email restano qui (con il PDF allegato) e nessuno le riceve davvero.</div>{% endif %}
+<div class="o-list table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Data (UTC)</th><th>A</th><th>Oggetto</th><th>Allegato</th><th>Stato</th></tr></thead>
+  <tbody>{% for m in rows %}
+    <tr class="click" data-href="{{ url_for('main.outbox_mail', mail_id=m.id) }}"><td>{{ m.date|data('%d/%m/%Y %H:%M') }}</td><td>{{ m.email_to }}</td><td>{{ m.subject }}</td><td class="small">{{ m.attachment_name }}</td>
+      <td><span class="badge {{ {'sent':'text-bg-success','simulated':'text-bg-info','exception':'text-bg-danger'}.get(m.state, 'text-bg-secondary') }}">{{ {'sent':'inviata','simulated':'simulata','exception':'errore','outgoing':'in uscita'}.get(m.state, m.state) }}</span></td></tr>
+  {% else %}<tr><td colspan="5" class="text-muted p-3">Nessuna email. Dalla busta paga usa "Invia per email".</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -5,6 +5,8 @@ import secrets
 
 from flask import Flask, abort, g, request, session
 from flask_login import LoginManager, current_user
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from .models import now, Attivita, User, Workspace, db
 
@@ -14,6 +16,15 @@ login_manager.login_message = "Accedi per continuare."
 
 MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio",
         "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_fk(dbapi_connection, connection_record):
+    """SQLite: attiva le foreign key (ON DELETE CASCADE), come in PostgreSQL."""
+    if type(dbapi_connection).__module__.startswith("sqlite3"):
+        cur = dbapi_connection.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
 
 
 def _db_url():
@@ -64,6 +75,10 @@ def inval(value):
     return f"{v:.4f}".rstrip("0").replace(".", ",")
 
 
+def data(d, fmt="%d/%m/%Y"):
+    return d.strftime(fmt) if d else ""
+
+
 def create_app(test_config=None):
     app = Flask(__name__)
     app.config.update(
@@ -85,7 +100,11 @@ def create_app(test_config=None):
     app.jinja_env.filters["euro"] = euro
     app.jinja_env.filters["num"] = num
     app.jinja_env.filters["inval"] = inval
+    app.jinja_env.filters["data"] = data
     app.jinja_env.globals["MESI"] = MESI
+    from .models import CONTRACT_STATES, PAYSLIP_STATES, SCHEDULE_PAY
+    app.jinja_env.globals.update(PAYSLIP_STATES=dict(PAYSLIP_STATES), CONTRACT_STATES=dict(CONTRACT_STATES),
+                                 SCHEDULE_PAY=dict(SCHEDULE_PAY))
 
     from .auth import bp as auth_bp
     from .views import bp as main_bp
