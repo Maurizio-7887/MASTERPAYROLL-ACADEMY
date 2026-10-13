@@ -29,8 +29,10 @@ def _sqlite_fk(dbapi_connection, connection_record):
 
 def _db_url():
     url = os.environ.get("DATABASE_URL", "sqlite:///masterpayroll.db")
-    if url.startswith("postgres://"):  # Railway/Heroku usano ancora il vecchio schema
-        url = url.replace("postgres://", "postgresql://", 1)
+    # Railway fornisce postgres:// o postgresql://: si usa esplicitamente il driver psycopg2
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            url = "postgresql+psycopg2://" + url[len(prefix):]
     return url
 
 
