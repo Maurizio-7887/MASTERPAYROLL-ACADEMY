@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": { "builder": "NIXPACKS" },
   "deploy": {
-    "startCommand": "gunicorn app:app --workers 2 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT",
+    "startCommand": "gunicorn app:app --preload --workers 2 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT",
     "healthcheckPath": "/login",
     "restartPolicyType": "ON_FAILURE"
   }
