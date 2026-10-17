@@ -119,3 +119,90 @@ def italian_holidays(year):
         (date(year, 11, 1), "Ognissanti"), (date(year, 12, 8), "Immacolata Concezione"),
         (date(year, 12, 25), "Natale"), (date(year, 12, 26), "Santo Stefano"),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Malattia: indennità INPS per giorni di calendario dell'evento
+# ---------------------------------------------------------------------------
+def malattia_periodo(employee, contract, day_from, day_to, perc1=50.0, perc2=66.67):
+    """Giorni di malattia del periodo divisi per fascia, contando il giorno dell'EVENTO (dal 1° giorno di malattia,
+    anche se è iniziato il mese prima): 1-3 carenza (pagata dall'azienda), 4-20 INPS al perc1%, 21-180 al perc2%.
+
+    Semplificazione didattica: retribuzione media giornaliera = retribuzione mensile / 30 per tutti
+    (per gli operai l'INPS usa /26 e non indennizza le domeniche)."""
+    from .models import LeaveType
+    out = {"carenza": 0, "gg50": 0, "gg67": 0, "rmg": 0.0, "importo": 0.0, "eventi": []}
+    if not contract:
+        return out
+    rmg = round(contract.retribuzione_mensile / 30, 2)
+    out["rmg"] = rmg
+    leaves = (Leave.query.join(LeaveType, Leave.holiday_status_id == LeaveType.id)
+              .filter(Leave.employee_id == employee.id, Leave.state == "validate", LeaveType.code == "MAL",
+                      Leave.date_from <= day_to, Leave.date_to >= day_from).order_by(Leave.date_from).all())
+    for lv in leaves:
+        ev = {"dal": lv.date_from, "al": lv.date_to, "carenza": 0, "gg50": 0, "gg67": 0}
+        for d in daterange(max(lv.date_from, day_from), min(lv.date_to, day_to)):
+            n = (d - lv.date_from).days + 1
+            if n <= 3:
+                ev["carenza"] += 1
+            elif n <= 20:
+                ev["gg50"] += 1
+            elif n <= 180:
+                ev["gg67"] += 1
+        for k in ("carenza", "gg50", "gg67"):
+            out[k] += ev[k]
+        out["eventi"].append(ev)
+    out["importo"] = round(out["gg50"] * rmg * perc1 / 100 + out["gg67"] * rmg * perc2 / 100, 2)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Ferie e permessi: maturato, goduto, residuo
+# ---------------------------------------------------------------------------
+def mesi_maturati(contract, anno, fino):
+    """Mesi dell'anno che maturano ferie e permessi (mese con almeno 15 giorni di rapporto), fino alla data."""
+    import calendar as _c
+    from datetime import date
+    n = 0
+    for m in range(1, fino.month + 1 if fino.year == anno else 13):
+        last = _c.monthrange(anno, m)[1]
+        start = max(date(anno, m, 1), contract.date_start)
+        end = min(date(anno, m, last), contract.date_end or date(anno, m, last), fino)
+        if end >= start and (end - start).days + 1 >= 15:
+            n += 1
+    return n
+
+
+def contatori_ferie(employee, anno, fino, ore_ferie_anno=160.0, ore_rol_anno=104.0):
+    """Ore di ferie e di permessi (ROL + ex festività) maturate, godute e residue nell'anno fino alla data.
+
+    Maturazione in dodicesimi per i mesi di rapporto, riproporzionata al part-time; il goduto si legge dalle
+    assenze approvate FERIE e ROL fino alla data."""
+    from datetime import date
+    from .models import LeaveType
+    contracts = [c for c in employee.contract_ids if c.state in ("open", "close")
+                 and c.date_start <= fino and (c.date_end is None or c.date_end >= date(anno, 1, 1))]
+    mat_f = mat_r = 0.0
+    for c in contracts:
+        mesi = mesi_maturati(c, anno, fino)
+        pt = (c.part_time or 100) / 100
+        mat_f += ore_ferie_anno * pt * mesi / 12
+        mat_r += ore_rol_anno * pt * mesi / 12
+    god = {"FERIE": 0.0, "ROL": 0.0}
+    leaves = (Leave.query.join(LeaveType, Leave.holiday_status_id == LeaveType.id)
+              .filter(Leave.employee_id == employee.id, Leave.state == "validate", LeaveType.code.in_(("FERIE", "ROL")),
+                      Leave.date_from <= fino, Leave.date_to >= date(anno, 1, 1)).all())
+    cal = employee.resource_calendar
+    for lv in leaves:
+        for d in daterange(max(lv.date_from, date(anno, 1, 1)), min(lv.date_to, fino)):
+            intervals = attendance_intervals(cal, d)
+            h_day = sum(t - f for f, t in intervals)
+            if h_day <= 0:
+                continue
+            h = overlap_hours(intervals, lv.hour_from, lv.hour_to) if (
+                lv.request_unit_hours and lv.hour_from is not None and lv.hour_to is not None) else h_day
+            god[lv.holiday_status.code] += h
+    r = lambda x: round(x, 2)  # noqa: E731
+    return {"ferie_maturate": r(mat_f), "ferie_godute": r(god["FERIE"]), "ferie_residue": r(mat_f - god["FERIE"]),
+            "rol_maturati": r(mat_r), "rol_goduti": r(god["ROL"]), "rol_residui": r(mat_r - god["ROL"]),
+            "residuo_totale": r(mat_f - god["FERIE"] + mat_r - god["ROL"])}

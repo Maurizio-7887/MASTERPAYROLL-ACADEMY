@@ -679,6 +679,67 @@ class ScaglioneIrpef(db.Model):
     aliquota = db.Column(db.Float, nullable=False)
 
 
+class ProgressivoAnnuo(db.Model):
+    """Progressivi dell'anno portati dal gestionale paghe precedente (mesi non elaborati qui).
+
+    Servono al conguaglio IRPEF di fine anno, alla CU e al TFR: come quando un'azienda cambia
+    software paghe a metà anno e carica i progressivi dei mesi già pagati."""
+    __tablename__ = "progressivi_annui"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    anno = db.Column(db.Integer, nullable=False)
+    mesi = db.Column(db.Integer, default=0)
+    imponibile_previdenziale = db.Column(db.Float, default=0.0)
+    inps_dipendente = db.Column(db.Float, default=0.0)
+    imponibile_fiscale = db.Column(db.Float, default=0.0)
+    irpef_trattenuta = db.Column(db.Float, default=0.0)
+    addizionali = db.Column(db.Float, default=0.0)
+    cuneo_indennita = db.Column(db.Float, default=0.0)
+    quota_tfr = db.Column(db.Float, default=0.0)
+    employee = db.relationship("Employee")
+
+
+class Cessazione(db.Model):
+    """Cessazione del rapporto di lavoro: prospetto del TFR e busta di liquidazione (struttura IT_CESS)."""
+    __tablename__ = "cessazioni"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    contract_id = db.Column(db.Integer, db.ForeignKey("contracts.id", ondelete="SET NULL"))
+    data = db.Column(db.Date, nullable=False)
+    motivo = db.Column(db.String(40), default="dimissioni")
+    preavviso_ok = db.Column(db.Boolean, default=True)
+    prospetto = db.Column(db.Text, default="")  # JSON del calcolo del TFR, anno per anno
+    payslip_id = db.Column(db.Integer, db.ForeignKey("payslips.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, default=now)
+    employee = db.relationship("Employee")
+    contract = db.relationship("Contract")
+    payslip = db.relationship("Payslip")
+
+
+class Contabilizzazione(db.Model):
+    """Registrazione in contabilità generale delle paghe di un mese (prima nota)."""
+    __tablename__ = "contabilizzazioni"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    anno = db.Column(db.Integer, nullable=False)
+    mese = db.Column(db.Integer, nullable=False)
+    data = db.Column(db.Date, nullable=False)
+    righe = db.Column(db.Text, default="")  # JSON: [conto, descrizione, dare, avere]
+    created_at = db.Column(db.DateTime, default=now)
+
+
+class EsercizioSpunta(db.Model):
+    """Passi dell'esercizio guidato spuntati a mano (le letture); gli altri si verificano sui dati."""
+    __tablename__ = "esercizio_spunte"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    esercizio = db.Column(db.String(40), nullable=False)
+    passo = db.Column(db.String(40), nullable=False)
+    created_at = db.Column(db.DateTime, default=now)
+
+
 def month_bounds(d):
     first = d.replace(day=1)
     nxt = (first + timedelta(days=32)).replace(day=1)
@@ -686,7 +747,7 @@ def month_bounds(d):
 
 
 # Tutti i modelli legati a un ambiente, nell'ordine in cui cancellarli.
-WORKSPACE_MODELS = [MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
+WORKSPACE_MODELS = [EsercizioSpunta, Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
                     Leave, Familiare, Contract, Employee, RuleInput, SalaryRule, PayrollStructure,
                     SalaryRuleCategory, ContributionRegister, Partner, ResourceCalendarLeave,
                     ResourceCalendarAttendance, ResourceCalendar, LeaveType, Livello, Parametro,

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, row %}
+{% block title %}{{ cat.name if cat else 'Nuova categoria' }}{% endblock %}
+{% block controlpanel %}{{ cp([("Categorie regola stipendio", url_for('regole.categories')), (cat.name if cat else 'Nuovo', None)], "hr.salary.rule.category") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+<div class="o-form-header"><div class="d-flex gap-1"><button class="btn btn-sm btn-primary" name="action" value="save">Salva</button>
+  {% if cat %}<button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare la categoria?"><i class="bi bi-trash"></i></button>{% endif %}</div></div>
+<div class="o-sheet" style="max-width:900px">
+  <label class="small text-muted">Nome</label>
+  <input name="name" value="{{ cat.name if cat }}" class="form-control mb-3" style="font-size:1.25rem;font-weight:600" required>
+  <div class="row"><div class="col-md-7">
+    {% call row("Codice") %}<input name="code" value="{{ cat.code if cat and cat.code }}" class="form-control form-control-sm code">{% endcall %}
+    {% call row("Padre", "Il collegamento al padre fa sommare i totali anche nella categoria padre") %}<select name="parent_id" class="form-select form-select-sm"><option value=""></option>{% for o in others %}<option value="{{ o.id }}" {{ 'selected' if cat and cat.parent_id == o.id }}>{{ o.code }} · {{ o.name }}</option>{% endfor %}</select>{% endcall %}
+  </div></div>
+  <label class="small fw-semibold mt-2">Descrizione</label><textarea name="note" class="form-control form-control-sm" rows="2">{{ cat.note if cat }}</textarea>
+  {% if cat %}<h6 class="mt-3">Regole stipendio</h6>
+  <table class="table table-sm"><tbody>{% for r in cat.salary_rules_ids|sort(attribute='sequence') %}<tr><td>{{ r.sequence }}</td><td class="code"><a href="{{ url_for('regole.rule', rule_id=r.id) }}">{{ r.code }}</a></td><td>{{ r.name }}</td></tr>{% else %}<tr><td class="text-muted small">Nessuna regola.</td></tr>{% endfor %}</tbody></table>
+  {% if cat.children_ids %}<div class="small">Categorie figlie: {% for c in cat.children_ids %}<a href="{{ url_for('regole.category', cat_id=c.id) }}">{{ c.code }}</a> {% endfor %}</div>{% endif %}{% endif %}
+</div>
+</form>
+{% endblock %}

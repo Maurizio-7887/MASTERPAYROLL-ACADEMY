@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Cessazione {{ c.employee.name }}{% endblock %}
+{% block controlpanel %}
+{% call cp([("Cessazioni", url_for('cessazioni.elenco')), (c.employee.name, None)], "hr.departure.wizard") %}
+{% if c.payslip %}<a class="btn btn-sm btn-primary" href="{{ url_for('buste_paga.payslip', slip_id=c.payslip.id) }}"><i class="bi bi-receipt"></i> Busta di liquidazione {{ c.payslip.number }}</a>{% endif %}
+{% endcall %}
+{% endblock %}
+{% block content %}
+<div class="o-sheet alone mb-3"><div class="row small">
+  <div class="col-md-3"><span class="text-muted">Dipendente</span><br><strong>{{ c.employee.name }}</strong></div>
+  <div class="col-md-3"><span class="text-muted">Ultimo giorno</span><br><strong>{{ c.data|data }}</strong></div>
+  <div class="col-md-3"><span class="text-muted">Motivo</span><br><strong>{{ motivi.get(c.motivo, c.motivo) }}</strong></div>
+  <div class="col-md-3"><span class="text-muted">Busta di liquidazione</span><br>{% if c.payslip %}<strong>{{ c.payslip.number }}</strong> <span class="badge st-{{ c.payslip.state }}">{{ PAYSLIP_STATES[c.payslip.state] }}</span>{% endif %}</div>
+</div>
+{% if c.payslip and c.payslip.state != 'done' %}<div class="alert alert-info py-2 mt-3 mb-0 small">Apri la busta di liquidazione, controlla le righe (ferie non godute, ratei, IRPEF di conguaglio, TFR e ritenute) e premi <strong>Conferma</strong>.</div>{% endif %}
+</div>
+{% include "cessazioni/_prospetto.html" %}
+{% endblock %}

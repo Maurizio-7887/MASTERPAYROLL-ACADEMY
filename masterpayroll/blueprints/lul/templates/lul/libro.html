@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, money %}
+{% block title %}Libro unico del lavoro{% endblock %}
+{% block controlpanel %}
+{% call cp([("Libro unico del lavoro · " ~ MESI[mese] ~ " " ~ anno, None)], "LUL · D.L. 112/2008") %}
+<form class="d-flex gap-2 align-items-center no-print">
+  <select name="mese" class="form-select form-select-sm">{% for m in range(1,13) %}<option value="{{ m }}" {{ 'selected' if m == mese }}>{{ MESI[m] }}</option>{% endfor %}</select>
+  <input name="anno" type="number" value="{{ anno }}" class="form-control form-control-sm" style="width:90px">
+  <button class="btn btn-sm btn-primary">Mostra</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i></button>
+</form>
+{% endcall %}
+{% endblock %}
+{% block content %}
+<p class="small text-muted no-print">Per ogni dipendente: <strong>sezione presenze</strong> (ore lavorate giorno per giorno; FE ferie, PR permessi, MA malattia, IN infortunio, PN permesso non retribuito,
+FS festività, R riposo) e <strong>sezione paga</strong> (le voci della busta completata). Il LUL si chiude entro la fine del mese successivo.</p>
+{% for sc in schede %}{% set s = sc.slip %}
+<div class="o-sheet alone mb-3" style="page-break-inside:avoid">
+  <div class="d-flex justify-content-between flex-wrap small mb-2"><div><strong>{{ s.employee.name }}</strong> · matr. {{ s.employee.registration_number }} · {{ s.employee.job_title }}
+    · {{ s.contract.livello.codice if s.contract and s.contract.livello }}</div><div>{{ s.number }} · {{ s.struct.name if s.struct }}</div></div>
+  {% if sc.giorni %}<div class="table-responsive"><table class="table table-sm table-bordered mb-2 text-center" style="font-size:.72rem">
+    <tr class="table-light">{% for d, sigla, ore in sc.giorni %}<th class="{{ 'text-danger' if settimana[loop.index0] >= 5 }}">{{ d.day }}</th>{% endfor %}<th>Ore</th></tr>
+    <tr>{% for d, sigla, ore in sc.giorni %}<td class="{{ 'table-warning' if sigla and sigla[0] not in '0123456789LR' }}">{{ sigla }}</td>{% endfor %}<td class="fw-bold">{{ sc.giorni|sum(attribute=2)|num }}</td></tr>
+  </table></div>{% endif %}
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Codice</th><th>Voce</th><th class="num">Quantità</th><th class="num">Importo</th><th class="num">Totale</th></tr></thead>
+    {% for ln in sc.righe %}<tr><td class="code">{{ ln.code }}</td><td>{{ ln.name }}</td><td class="num">{{ ln.quantity|num }}</td><td class="num">{{ ln.amount|euro }}</td><td class="num">{{ money(ln.total) }}</td></tr>{% endfor %}
+    <tfoot><tr class="fw-semibold"><td colspan="2">Imponibile previdenziale {{ s.get_salary_line_total('IMP_PREV')|euro }} · fiscale {{ s.get_salary_line_total('IMP_FISC')|euro }}</td><td></td><td></td><td class="num"></td></tr></tfoot>
+  </table></div>
+</div>
+{% else %}<div class="o-sheet alone text-muted">Nessuna busta completata in {{ MESI[mese] }} {{ anno }}.</div>{% endfor %}
+{% endblock %}

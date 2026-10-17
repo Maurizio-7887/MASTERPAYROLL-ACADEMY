@@ -11,7 +11,7 @@ from sqlalchemy.engine import Engine
 from .models import now, Attivita, User, Workspace, db
 
 login_manager = LoginManager()
-login_manager.login_view = "auth.login"
+login_manager.login_view = "accesso.login"
 login_manager.login_message = "Accedi per continuare."
 
 MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio",
@@ -103,17 +103,18 @@ def create_app(test_config=None):
     app.jinja_env.filters["num"] = num
     app.jinja_env.filters["inval"] = inval
     app.jinja_env.filters["data"] = data
+    import json as _json
+    app.jinja_env.filters["fromjson"] = lambda s: _json.loads(s or "{}")
     app.jinja_env.globals["MESI"] = MESI
     from .models import CONTRACT_STATES, PAYSLIP_STATES, SCHEDULE_PAY
     app.jinja_env.globals.update(PAYSLIP_STATES=dict(PAYSLIP_STATES), CONTRACT_STATES=dict(CONTRACT_STATES),
                                  SCHEDULE_PAY=dict(SCHEDULE_PAY))
 
-    from .auth import bp as auth_bp
-    from .views import bp as main_bp
-    from .docente import bp as docente_bp
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(main_bp)
-    app.register_blueprint(docente_bp)
+    # una cartella per attività: masterpayroll/blueprints/<attività>/ con templates/<attività>/*.html
+    import importlib
+    from .blueprints import AREE
+    for nome in AREE:
+        app.register_blueprint(importlib.import_module(f".blueprints.{nome}", __name__).bp)
 
     @app.before_request
     def _csrf_and_tracking():
@@ -180,4 +181,7 @@ def ensure_workspace(user):
         db.session.commit()
     if not Parametro.query.filter_by(workspace_id=ws.id).first():
         seed_workspace(ws)
+    elif not Parametro.query.filter_by(workspace_id=ws.id, codice="TFR_SOSTITUTIVA").first():
+        from .seed import upgrade_workspace
+        upgrade_workspace(ws)  # ambiente creato con una versione precedente: si aggiunge ciò che manca
     return ws

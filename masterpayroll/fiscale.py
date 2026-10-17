@@ -142,6 +142,29 @@ def trattamento_integrativo_spetta(reddito, scaglioni=None):
     return irpef_annua(r, scaglioni) > detrazione_lavoro(r) - 75
 
 
+def irpef_dovuta_annua(imponibile, familiari=(), giorni=365, scaglioni=None, ref_date=None):
+    """IRPEF netta dell'anno per il CONGUAGLIO: imposta lorda sugli scaglioni meno le detrazioni annue.
+
+    La detrazione per lavoro dipendente spetta per i giorni di lavoro nell'anno (art. 13 TUIR: × giorni / 365);
+    le detrazioni per familiari e l'ulteriore detrazione del cuneo si calcolano sul reddito dell'anno."""
+    r = max(0.0, float(imponibile))
+    lorda = irpef_annua(r, scaglioni)
+    detr = detrazione_lavoro(r) * min(365, max(0, giorni)) / 365
+    detr += detrazioni_familiari(r, list(familiari or []), ref_date)
+    if 20000 < r <= 40000:
+        detr += cuneo_detrazione(r)
+    return round(max(0.0, lorda - detr), 2)
+
+
+def aliquota_media_tfr(imponibile, mesi_servizio, scaglioni=None):
+    """Tassazione separata del TFR (art. 19 TUIR): reddito di riferimento = imponibile × 12 / mesi di servizio;
+    aliquota media = IRPEF del reddito di riferimento / reddito di riferimento."""
+    if imponibile <= 0 or mesi_servizio <= 0:
+        return 0.0
+    rif = imponibile * 12 / mesi_servizio
+    return round(irpef_annua(rif, scaglioni) / rif * 100, 2)
+
+
 def make_helpers(scaglioni=None, ref_date=None):
     return {
         "arrotonda": _round_half_up,
@@ -155,6 +178,9 @@ def make_helpers(scaglioni=None, ref_date=None):
         "cuneo_indennita": cuneo_indennita,
         "cuneo_detrazione": cuneo_detrazione,
         "trattamento_integrativo_spetta": lambda reddito: trattamento_integrativo_spetta(reddito, scaglioni),
+        "irpef_dovuta_annua": lambda imponibile, familiari=(), giorni=365: irpef_dovuta_annua(
+            imponibile, [getattr(f, "_record", f) for f in familiari], giorni, scaglioni, ref_date),
+        "aliquota_media_tfr": lambda imponibile, mesi: aliquota_media_tfr(imponibile, mesi, scaglioni),
     }
 
 
@@ -170,5 +196,8 @@ HELPER_DOCS = [
     ("tools.cuneo_indennita(reddito)", "Somma esente annua del cuneo fiscale (fino a 20.000 €)."),
     ("tools.cuneo_detrazione(reddito)", "Ulteriore detrazione annua del cuneo fiscale (20.000-40.000 €)."),
     ("tools.trattamento_integrativo_spetta(reddito)", "Vero/Falso: spetta il trattamento integrativo?"),
+    ("tools.irpef_dovuta_annua(imponibile, employee.familiari, giorni)",
+     "Conguaglio: IRPEF netta dell'anno (scaglioni − detrazioni annue, lavoro × giorni/365)."),
+    ("tools.aliquota_media_tfr(imponibile, mesi)", "Tassazione separata del TFR: aliquota media sul reddito di riferimento."),
     ("tools.math.floor(x) · ceil · sqrt …", "Funzioni matematiche (come tools.math in Odoo)."),
 ]

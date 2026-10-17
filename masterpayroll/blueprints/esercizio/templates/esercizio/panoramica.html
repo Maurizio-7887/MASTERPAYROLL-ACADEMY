@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Esercizio passo passo{% endblock %}
+{% block controlpanel %}{{ cp([("Esercizio passo passo", None)]) }}{% endblock %}
+{% block content %}
+<div class="o-sheet alone mb-3">
+  <h5 class="page-title">{{ guida.titolo }}</h5>
+  <p class="mb-1">La finestra a destra indica <strong>un'azione alla volta</strong>: dove andare (pulsante «Apri la pagina»), cosa scrivere e cosa deve succedere.
+  Le operazioni si spuntano da sole quando i tuoi dati sono giusti; le letture si confermano con «Fatto».</p>
+  <p class="small text-muted mb-0">Fatti {{ guida.fatti }} passi su {{ guida.totale }}. Puoi rifare tutto da capo: Cruscotto → Ripristina l'ambiente.</p>
+</div>
+<div class="o-list table-responsive"><table class="table table-sm align-middle">
+  <thead><tr><th></th><th>#</th><th>Capitolo</th><th>Azione</th><th>Tipo</th></tr></thead>
+  <tbody>{% for p in guida.passi %}<tr class="click" data-href="{{ p.href }}">
+    <td>{% if p.stato %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-circle text-muted"></i>{% endif %}</td>
+    <td>{{ loop.index }}</td><td class="small text-muted">{{ p.cap }}</td><td>{{ p.titolo }}</td><td class="small">{{ 'operazione' if p.check else 'lettura' }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

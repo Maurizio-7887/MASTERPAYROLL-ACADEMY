@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, csrf %}
+{% block title %}Contabilizzazione paghe{% endblock %}
+{% block controlpanel %}
+{% call cp([("Contabilizzazione paghe · " ~ MESI[mese] ~ " " ~ anno, None)], "account.move · paghe") %}
+<form class="d-flex gap-2 align-items-center">
+  <select name="mese" class="form-select form-select-sm">{% for m in range(1,13) %}<option value="{{ m }}" {{ 'selected' if m == mese }}>{{ MESI[m] }}</option>{% endfor %}</select>
+  <input name="anno" type="number" value="{{ anno }}" class="form-control form-control-sm" style="width:90px">
+  <button class="btn btn-sm btn-primary">Mostra</button>
+</form>
+{% endcall %}
+{% endblock %}
+{% block content %}
+<p class="small text-muted">Scrittura riepilogativa delle {{ n }} buste completate del mese, in partita doppia. In <strong>Dare</strong> i costi del personale
+(conto economico B9) e i crediti verso INPS ed Erario per le somme anticipate; in <strong>Avere</strong> i debiti da pagare: netti ai dipendenti,
+contributi all'INPS, ritenute all'Erario (F24 entro il 16), INAIL, fondo TFR.</p>
+{% if righe %}
+<div class="o-list table-responsive mb-3"><table class="table table-sm">
+  <thead><tr><th>Conto</th><th>Descrizione</th><th class="num">Dare</th><th class="num">Avere</th></tr></thead>
+  <tbody>{% for r in righe %}<tr><td class="code">{{ r.conto }}</td><td>{{ r.descrizione }}</td><td class="num">{{ r.dare|euro if r.dare }}</td><td class="num">{{ r.avere|euro if r.avere }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-bold {{ 'table-success' if (dare - avere)|abs < 0.01 else 'table-danger' }}"><td colspan="2">Totali {{ '· quadra' if (dare - avere)|abs < 0.01 else '· NON quadra' }}</td><td class="num">{{ dare|euro }}</td><td class="num">{{ avere|euro }}</td></tr></tfoot>
+</table></div>
+{% if reg %}<div class="alert alert-success py-2 small"><i class="bi bi-check2-circle"></i> Registrata in contabilità il {{ reg.created_at|data }} con data {{ reg.data|data }}.</div>
+{% else %}<form method="post">{{ csrf() }}<input type="hidden" name="anno" value="{{ anno }}"><input type="hidden" name="mese" value="{{ mese }}">
+  <button class="btn btn-primary"><i class="bi bi-journal-check"></i> Registra in contabilità</button></form>{% endif %}
+{% else %}<div class="o-sheet alone text-muted">Nessuna busta completata in {{ MESI[mese] }} {{ anno }}.</div>{% endif %}
+{% if registrate %}<h6 class="fw-bold mt-4">Mesi già registrati</h6>
+<ul class="small">{% for c in registrate %}<li><a href="?anno={{ c.anno }}&mese={{ c.mese }}">{{ MESI[c.mese] }} {{ c.anno }}</a> · data {{ c.data|data }}</li>{% endfor %}</ul>{% endif %}
+{% endblock %}

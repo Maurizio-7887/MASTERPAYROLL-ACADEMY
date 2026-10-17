@@ -308,7 +308,47 @@ def get_payroll_dict(slip, contracts):
         inps = SalaryRule.query.filter_by(workspace_id=slip.workspace_id, code="INPS_DIP").first()
         aliq = abs(inps.amount_percentage) if inps and inps.amount_select == "percentage" else 9.19
         res["reddito_ordinario_annuo"] = round(contract.retribuzione_mensile * 12 * (1 - aliq / 100), 2)
+        # malattia: giorni dell'evento per fascia e indennità a carico INPS anticipata in busta
+        from .hr_service import malattia_periodo
+        mal = malattia_periodo(slip.employee, contract, slip.date_from, slip.date_to,
+                               res.get("MAL_INPS_PERC1", 50.0), res.get("MAL_INPS_PERC2", 66.67))
+        res.update({"mal_carenza": mal["carenza"], "mal_gg50": mal["gg50"], "mal_gg67": mal["gg67"],
+                    "mal_rmg": mal["rmg"], "mal_inps": mal["importo"]})
+        # conguaglio di fine anno (dicembre) e di fine rapporto (busta di liquidazione IT_CESS)
+        res["cessazione"] = bool(slip.struct and slip.struct.code == "IT_CESS")
+        res.update(dati_conguaglio(slip, contract))
     return res
+
+
+def dati_conguaglio(slip, contract):
+    """Progressivi dell'anno per il conguaglio: imponibile fiscale e IRPEF già trattenuta nelle buste
+    completate (esclusa questa) più i progressivi caricati dal gestionale precedente; giorni di lavoro."""
+    from .models import ProgressivoAnnuo
+    anno = slip.date_to.year
+    d1, d2 = date(anno, 1, 1), date(anno, 12, 31)
+    imp = irpef = cuneo = 0.0
+    q = Payslip.query.filter(Payslip.workspace_id == slip.workspace_id, Payslip.employee_id == slip.employee_id,
+                             Payslip.state == "done", Payslip.date_from >= d1, Payslip.date_to <= d2,
+                             Payslip.id != (slip.id or 0))
+    for s in q:
+        sg = -1 if s.credit_note else 1
+        for ln in s.line_ids:
+            if ln.code == "IMP_FISC":
+                imp += sg * ln.total
+            elif ln.code in ("IRPEF", "IRPEF13", "IRPEF_CESS", "CONG_IRPEF"):
+                irpef -= sg * ln.total
+            elif ln.code in ("IND_CUNEO", "CONG_CUNEO"):
+                cuneo += sg * ln.total
+    for p in ProgressivoAnnuo.query.filter_by(workspace_id=slip.workspace_id, employee_id=slip.employee_id, anno=anno):
+        imp += p.imponibile_fiscale or 0
+        irpef += p.irpef_trattenuta or 0
+        cuneo += p.cuneo_indennita or 0
+    inizio = min((c.date_start for c in slip.employee.contract_ids if c.state in ("open", "close")
+                  and (c.date_end is None or c.date_end >= d1)), default=contract.date_start)
+    fine = contract.date_end if contract.date_end and contract.date_end < d2 else d2
+    giorni = max(0, (fine - max(inizio, d1)).days + 1)
+    return {"cong_imponibile": round(imp, 2), "cong_irpef": round(irpef, 2), "cong_cuneo": round(cuneo, 2),
+            "cong_giorni": min(365, giorni)}
 
 
 def ratei_tredicesima(contract, ref_date):

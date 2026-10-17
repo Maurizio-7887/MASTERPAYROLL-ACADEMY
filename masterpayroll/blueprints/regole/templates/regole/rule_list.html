@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Regole stipendio{% endblock %}
+{% block controlpanel %}{% call cp([("Regole stipendio", None)], "hr.salary.rule") %}<a href="{{ url_for('regole.rule') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuovo</a>{% endcall %}{% endblock %}
+{% block content %}
+<form class="o-filters d-flex flex-wrap gap-2 align-items-center mb-2">
+  <input name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width:220px" placeholder="Cerca codice o nome">
+  <select name="category_id" class="form-select form-select-sm" style="max-width:200px" onchange="this.form.submit()"><option value="">Tutte le categorie</option>{% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if c.id == cat_id }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}</select>
+  <select name="struct_id" class="form-select form-select-sm" style="max-width:220px" onchange="this.form.submit()"><option value="">Tutte le strutture</option>{% for s in structures %}<option value="{{ s.id }}" {{ 'selected' if s.id == st_id }}>{{ s.code }}</option>{% endfor %}</select>
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-secondary {{ 'active' if not tree and not archiviate }}" href="{{ url_for('regole.rules') }}">Elenco</a>
+    <a class="btn btn-outline-secondary {{ 'active' if tree }}" href="{{ url_for('regole.rules', vista='albero') }}">Albero (padri/figlie)</a>
+    <a class="btn btn-outline-secondary {{ 'active' if archiviate }}" href="{{ url_for('regole.rules', archiviate=1) }}">Archiviate</a>
+  </div>
+  <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+</form>
+<div class="o-list table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Seq.</th><th>Codice</th><th>Nome</th><th>Categoria</th><th>Condizione</th><th>Importo</th><th>Registro</th><th>Strutture</th></tr></thead>
+  <tbody>
+  {% macro riga(r, lvl) %}
+    <tr class="click" data-href="{{ url_for('regole.rule', rule_id=r.id) }}"><td>{{ r.sequence }}</td><td class="code lvl-{{ lvl }} fw-bold">{% if lvl %}↳ {% endif %}{{ r.code }}</td>
+      <td>{{ r.name }}{% if not r.appears_on_payslip %} <i class="bi bi-eye-slash text-muted" title="Non appare nella busta paga"></i>{% endif %}</td><td class="small">{{ r.category.code if r.category }}</td>
+      <td class="small">{{ {'none':'Sempre vera','range':'Intervallo','python':'Espressione Python'}[r.condition_select] }}</td>
+      <td class="small">{% if r.amount_select == 'fix' %}Fisso {{ r.amount_fix|euro }}{% elif r.amount_select == 'percentage' %}{{ r.amount_percentage|num(4) }}% di <span class="code">{{ r.amount_percentage_base }}</span>{% else %}Codice Python{% endif %}</td>
+      <td class="small">{{ r.register.name if r.register }}</td><td class="small">{{ r.struct_ids|map(attribute='code')|join(', ') }}</td></tr>
+    {% if tree %}{% for ch in r.child_ids|sort(attribute='sequence') %}{{ riga(ch, lvl + 1) }}{% endfor %}{% endif %}
+  {% endmacro %}
+  {% for r in rows %}{{ riga(r, 0) }}{% else %}<tr><td colspan="8" class="text-muted p-3">Nessuna regola.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

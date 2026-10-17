@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Ferie e permessi{% endblock %}
+{% block controlpanel %}
+{% call cp([("Ferie e permessi al " ~ (al|data), None)], "hr.leave.allocation") %}
+<form class="d-flex gap-2 align-items-center"><label class="small text-muted">Situazione al</label>
+  <input type="date" name="al" value="{{ al.isoformat() }}" class="form-control form-control-sm" style="width:150px">
+  <button class="btn btn-sm btn-primary">Mostra</button></form>
+{% endcall %}
+{% endblock %}
+{% block content %}
+<p class="small text-muted">Maturazione in dodicesimi per ogni mese di rapporto dell'anno (mese con almeno 15 giorni), riproporzionata al part-time:
+ferie {{ ore_f|num }} ore l'anno, permessi ROL ed ex festività {{ ore_r|num }} ore l'anno (CCNL metalmeccanico, valori nella pagina
+<a href="{{ url_for('impostazioni.tabelle') }}">Tabelle</a>). Il goduto si legge dalle <a href="{{ url_for('assenze.leaves') }}">assenze approvate</a> di tipo FERIE e ROL.</p>
+<div class="o-list table-responsive"><table class="table table-sm table-hover">
+  <thead><tr><th>Dipendente</th><th class="num">Ferie maturate</th><th class="num">Ferie godute</th><th class="num">Ferie residue</th>
+    <th class="num">Permessi maturati</th><th class="num">Permessi goduti</th><th class="num">Permessi residui</th><th class="num">Residuo totale (ore)</th></tr></thead>
+  <tbody>{% for e, c in righe %}<tr class="click" data-href="{{ url_for('dipendenti.employee', emp_id=e.id) }}">
+    <td>{{ e.name }}{% if not e.active %} <span class="badge text-bg-secondary">cessato</span>{% endif %}</td>
+    <td class="num">{{ c.ferie_maturate|num }}</td><td class="num">{{ c.ferie_godute|num }}</td><td class="num fw-semibold">{{ c.ferie_residue|num }}</td>
+    <td class="num">{{ c.rol_maturati|num }}</td><td class="num">{{ c.rol_goduti|num }}</td><td class="num fw-semibold">{{ c.rol_residui|num }}</td>
+    <td class="num fw-bold">{{ c.residuo_totale|num }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="small text-muted mt-2">Alla cessazione del rapporto il residuo si paga come <em>indennità sostitutiva</em> (regola FERIE_NG della struttura IT_CESS).
+Semplificazione didattica: si parte da zero il 1° gennaio, senza i residui degli anni precedenti.</p>
+{% endblock %}

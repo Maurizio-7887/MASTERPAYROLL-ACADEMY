@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}{{ m.subject }}{% endblock %}
+{% block controlpanel %}{{ cp([("Posta in uscita", url_for('posta.outbox')), (m.subject, None)], "mail.mail") }}{% endblock %}
+{% block content %}
+<div class="o-sheet alone" style="max-width:820px">
+  <table class="table table-sm"><tr><th style="width:120px">Da</th><td>{{ m.email_from }}</td></tr><tr><th>A</th><td>{{ m.email_to }}</td></tr>
+    <tr><th>Oggetto</th><td>{{ m.subject }}</td></tr><tr><th>Stato</th><td>{{ m.state }}{% if m.failure_reason %} — <span class="text-danger">{{ m.failure_reason }}</span>{% endif %}</td></tr>
+    <tr><th>Allegato</th><td>{% if m.attachment %}<a target="_blank" href="{{ url_for('posta.outbox_mail', mail_id=m.id, allegato=1) }}"><i class="bi bi-file-earmark-pdf"></i> {{ m.attachment_name }}</a>{% endif %}</td></tr></table>
+  <div class="border rounded p-3 bg-light">{{ m.body_html|safe }}</div>
+  {% if m.payslip_id %}<a class="btn btn-sm btn-outline-secondary mt-3" href="{{ url_for('buste_paga.payslip', slip_id=m.payslip_id) }}">Apri la busta paga</a>{% endif %}
+</div>
+{% endblock %}

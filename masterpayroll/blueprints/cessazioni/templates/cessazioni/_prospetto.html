@@ -1,0 +1,25 @@
+<div class="row g-3">
+  <div class="col-xl-7"><div class="card h-100"><div class="card-header">Fondo TFR anno per anno <span class="o-model">art. 2120 c.c.</span></div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Anno</th><th class="num">Mesi</th><th class="num">Retribuzione utile</th><th class="num">Quota (÷ 13,5)</th><th class="num">− 0,50% IVS</th><th class="num">Rivalutazione</th><th class="num">− Sostitutiva 17%</th><th class="num">Fondo al 31/12</th></tr></thead>
+      <tbody>{% for a in p.anni %}<tr><td>{{ a.anno }}</td><td class="num">{{ a.mesi }}</td><td class="num">{{ a.retribuzione|euro }}</td><td class="num">{{ a.quota|euro }}</td><td class="num">{{ a.contributo|euro }}</td><td class="num">{{ a.rivalutazione|euro }}</td><td class="num">{{ a.sostitutiva|euro }}</td><td class="num fw-semibold">{{ a.fondo|euro }}</td></tr>{% endfor %}
+      <tr class="table-light"><td>{{ p.anno.anno }}<br><span class="small text-muted">fino alla cessazione</span></td><td class="num">{{ p.anno.mesi }}</td><td class="num">{{ p.anno.utile|euro }}</td>
+        <td class="num">{{ p.anno.quote|euro }}<br><span class="small text-muted">+ {{ p.anno.quota_liquidazione|euro }} liquidazione</span></td><td class="num">{{ p.anno.contributo|euro }}</td>
+        <td class="num">{{ p.anno.rivalutazione|euro }}</td><td class="num small text-muted">in busta</td><td class="num fw-bold">{{ p.tfr_lordo|euro }}</td></tr></tbody>
+    </table></div>
+    <div class="card-body small text-muted py-2">Rivalutazione {{ p.tasso|num }}% l'anno sul fondo del 31/12 precedente (nell'anno della cessazione per i mesi lavorati).
+      Semplificazione: per gli anni passati la retribuzione è quella del contratto attuale ({{ p.retribuzione_annua|euro }} l'anno). Quote dell'anno: progressivi del gestionale precedente + buste completate.</div></div></div>
+  <div class="col-xl-5"><div class="card h-100"><div class="card-header">Tassazione separata e netto</div>
+    <table class="table table-sm mb-0">
+      <tr><td>TFR lordo</td><td class="num fw-semibold">{{ p.tfr_lordo|euro }}</td></tr>
+      <tr><td>− rivalutazioni (già soggette a imposta sostitutiva)</td><td class="num">{{ p.rivalutazioni|euro }}</td></tr>
+      <tr><td>= imponibile a tassazione separata</td><td class="num">{{ p.imponibile|euro }}</td></tr>
+      <tr><td>Mesi di servizio (dal {{ p.inizio_it or p.inizio }})</td><td class="num">{{ p.mesi_servizio }}</td></tr>
+      <tr><td>Reddito di riferimento = imponibile × 12 ÷ mesi</td><td class="num">{{ p.riferimento|euro }}</td></tr>
+      <tr><td>Aliquota media IRPEF sul reddito di riferimento</td><td class="num">{{ p.aliquota|num }}%</td></tr>
+      <tr><td>Ritenuta sul TFR (codice tributo 1012)</td><td class="num neg">−{{ p.ritenuta|euro }}</td></tr>
+      <tr><td>Imposta sostitutiva sulla rivalutazione dell'anno (1713)</td><td class="num neg">−{{ p.sostitutiva_anno|euro }}</td></tr>
+      <tr class="table-primary fw-bold"><td>TFR netto</td><td class="num">{{ p.tfr_netto|euro }}</td></tr>
+      <tr><td colspan="2" class="small text-muted">Nella stessa busta: ferie e permessi non goduti <strong>{{ p.ferie_ore|num }} ore</strong> e <strong>{{ p.ratei_13 }}</strong> ratei di tredicesima, con il conguaglio IRPEF di fine rapporto.</td></tr>
+    </table></div></div>
+</div>

@@ -23,6 +23,12 @@ PARAMETRI = [
     ("INAIL_TASSO", "Tasso INAIL della PAT (per mille)", 25.0, "‰"),
     ("TFR_DIVISORE", "Divisore annuo del TFR (art. 2120 c.c.)", 13.5, ""),
     ("TRASFERTA_ESENTE", "Indennità di trasferta forfettaria esente in Italia (al giorno)", 46.48, "€"),
+    ("FERIE_ORE_ANNO", "Ore di ferie maturate in un anno (4 settimane, tempo pieno)", 160.0, "h"),
+    ("ROL_ORE_ANNO", "Ore di permessi ROL + ex festività in un anno (CCNL metalmeccanico)", 104.0, "h"),
+    ("MAL_INPS_PERC1", "Indennità di malattia INPS dal 4° al 20° giorno", 50.0, "%"),
+    ("MAL_INPS_PERC2", "Indennità di malattia INPS dal 21° al 180° giorno", 66.67, "%"),
+    ("TFR_RIVALUTAZIONE", "Rivalutazione annua del fondo TFR (1,5% + 75% dell'inflazione ISTAT, didattica)", 2.5, "%"),
+    ("TFR_SOSTITUTIVA", "Imposta sostitutiva sulla rivalutazione del TFR", 17.0, "%"),
 ]
 
 # (codice, nome, padre, nota)
@@ -40,6 +46,10 @@ CATEGORIE = [
     ("ALTRE", "Altre trattenute", "DED", ""),
     ("ESENTE", "Somme non imponibili", None, "Pagate in busta ma senza contributi né IRPEF."),
     ("CRED", "Somme anticipate per conto dello Stato", "ESENTE", "L'azienda le recupera in F24."),
+    ("INPS_IND", "Indennità a carico INPS (anticipate)", None,
+     "Malattia: pagate in busta per conto dell'INPS. Imponibili IRPEF, non contributive; si recuperano nel DM10/F24."),
+    ("TFRC", "Trattamento di fine rapporto liquidato", "ESENTE",
+     "TFR pagato alla cessazione: tassazione separata, fuori dal reddito del mese e dai contributi."),
     ("NET", "Netto", None, ""),
     ("COMP", "Contributi a carico azienda", None, "Come la categoria 'Company Contribution' di Odoo."),
     ("TOT", "Totali aziendali", None, ""),
@@ -56,10 +66,31 @@ REGISTRI = [
     ("Credito - trattamento integrativo (1655)", "Agenzia delle Entrate", "erario", "1655", "credito"),
     ("Credito - somma esente cuneo fiscale", "Agenzia delle Entrate", "erario", "CUNEO", "credito"),
     ("Fondo TFR", "Fondo TFR aziendale", "", "", "debito"),
+    ("INPS - indennità anticipate (recupero)", "INPS", "inps", "DM10", "credito"),
+    ("Erario - ritenute TFR (1012)", "Agenzia delle Entrate", "erario", "1012", "debito"),
+    ("Erario - imposta sostitutiva rivalutazione TFR (1713)", "Agenzia delle Entrate", "erario", "1713", "debito"),
 ]
 
 PY = "python"
 R = dict  # leggibilità
+
+# formule aggiornate (malattia, TFR liquidato) e quelle di prima, per aggiornare gli ambienti già creati
+NET_CODE = "result = categories.BASIC + categories.ALW + categories.ESENTE + categories.INPS_IND + categories.DED"
+IMP_FISC_CODE = "result = GROSS + categories.PREV + categories.INPS_IND"
+COSTO_CODE = "result = GROSS + categories.ESENTE - categories.TFRC - categories.CRED + categories.COMP"
+FORMULE_PRECEDENTI = {
+    "NET": ("result = categories.BASIC + categories.ALW + categories.ESENTE + categories.DED", NET_CODE),
+    "IMP_FISC": ("result = GROSS + categories.PREV", IMP_FISC_CODE),
+    "COSTO": ("result = GROSS + categories.ESENTE - categories.CRED + categories.COMP", COSTO_CODE),
+}
+
+CONG_CODE = """imponibile = payroll.cong_imponibile + IMP_FISC
+trattenuta = payroll.cong_irpef - IRPEF
+dovuta = tools.irpef_dovuta_annua(imponibile, employee.familiari, payroll.cong_giorni)
+result = -arrotonda(dovuta - trattenuta)"""
+CESS_IRPEF_CODE = """imponibile = payroll.cong_imponibile + IMP_FISC
+dovuta = tools.irpef_dovuta_annua(imponibile, employee.familiari, payroll.cong_giorni)
+result = -arrotonda(dovuta - payroll.cong_irpef)"""
 
 # Regole. Chiavi = campi di hr.salary.rule.  'struct' = strutture in cui inserirla.
 REGOLE = [
@@ -67,12 +98,12 @@ REGOLE = [
     R(code="BASIC", name="Paga base (minimo tabellare)", sequence=1, category="BASIC", struct=["BASE"],
       amount_select="code", amount_python_compute="result = arrotonda(contract.wage * contract.part_time / 100)",
       note="Minimo del livello CCNL, riproporzionato se il contratto è part-time."),
-    R(code="GROSS", name="Lordo imponibile", sequence=100, category="GROSS", struct=["BASE", "IT13"],
+    R(code="GROSS", name="Lordo imponibile", sequence=100, category="GROSS", struct=["BASE", "IT13", "IT_CESS"],
       appears_on_payslip=False, amount_select="code",
       amount_python_compute="result = categories.BASIC + categories.ALW"),
-    R(code="NET", name="Netto in busta", sequence=500, category="NET", struct=["BASE", "IT13"],
+    R(code="NET", name="Netto in busta", sequence=500, category="NET", struct=["BASE", "IT13", "IT_CESS"],
       register="Dipendenti - netti da pagare", amount_select="code",
-      amount_python_compute="result = categories.BASIC + categories.ALW + categories.ESENTE + categories.DED",
+      amount_python_compute=NET_CODE,
       note="Le trattenute (DED) sono negative: il netto è una semplice somma."),
     # --- struttura mensile CCNL metalmeccanico
     R(code="SUPERMIN", name="Superminimo individuale", sequence=2, category="BASIC", struct=["IT_ORD"],
@@ -106,11 +137,11 @@ REGOLE = [
       amount_select="percentage", quantity="abs(worked_days.PNR.number_of_hours)", amount_percentage=-100.0,
       amount_percentage_base="ORARIA",
       note="Usa i GIORNI LAVORATI: le ore di assenza di tipo PNR arrivano dal modulo Assenze."),
-    R(code="IMP_PREV", name="Imponibile previdenziale", sequence=110, category="IMP", struct=["IT_ORD", "IT13"],
+    R(code="IMP_PREV", name="Imponibile previdenziale", sequence=110, category="IMP", struct=["IT_ORD", "IT13", "IT_CESS"],
       appears_on_payslip=False, amount_select="code", amount_python_compute="result = arrotonda(GROSS, 0)",
       note="L'imponibile contributivo si arrotonda all'unità di euro."),
     R(code="INPS_DIP", name="Contributo IVS c/dipendente", sequence=120, category="PREV",
-      struct=["IT_ORD", "IT13"], register="INPS - contributi", amount_select="percentage",
+      struct=["IT_ORD", "IT13", "IT_CESS"], register="INPS - contributi", amount_select="percentage",
       amount_percentage=-9.19, amount_percentage_base="IMP_PREV",
       note="Percentuale NEGATIVA come la regola 'Provident Fund' della demo Odoo."),
     R(code="INPS_AGG", name="Contributo aggiuntivo 1% (oltre 1ª fascia)", sequence=121, category="PREV",
@@ -120,9 +151,9 @@ REGOLE = [
       amount_percentage_base="IMP_PREV - payroll.MASSIMALE_1FASCIA_MESE",
       note="Regola FIGLIA di INPS_DIP: viene valutata solo se la regola padre è applicabile. "
            "Semplificazione: nella realtà il superamento si verifica sul cumulo annuo."),
-    R(code="IMP_FISC", name="Imponibile fiscale", sequence=200, category="IMP", struct=["IT_ORD", "IT13"],
-      appears_on_payslip=False, amount_select="code", amount_python_compute="result = GROSS + categories.PREV",
-      note="I contributi del dipendente sono deducibili (PREV è negativo)."),
+    R(code="IMP_FISC", name="Imponibile fiscale", sequence=200, category="IMP", struct=["IT_ORD", "IT13", "IT_CESS"],
+      appears_on_payslip=False, amount_select="code", amount_python_compute=IMP_FISC_CODE,
+      note="I contributi del dipendente sono deducibili (PREV è negativo); l'indennità di malattia INPS è imponibile IRPEF."),
     R(code="REDD_ANNUO", name="Reddito annuo presunto", sequence=210, category="IMP", struct=["IT_ORD"],
       appears_on_payslip=False, amount_select="code",
       amount_python_compute=("aliquota = abs(rules.INPS_DIP.amount_percentage)\n"
@@ -178,18 +209,82 @@ REGOLE = [
       amount_select="code", amount_python_compute="result = -inputs.ANTICIPO.amount",
       inputs=[("ANTICIPO", "Anticipo già erogato da recuperare")]),
     R(code="INPS_DITTA", name="Contributi INPS c/azienda", sequence=600, category="COMP",
-      struct=["IT_ORD", "IT13"], register="INPS - contributi", appears_on_payslip=False,
+      struct=["IT_ORD", "IT13", "IT_CESS"], register="INPS - contributi", appears_on_payslip=False,
       amount_select="percentage", amount_percentage=29.58, amount_percentage_base="IMP_PREV"),
-    R(code="INAIL", name="Premio INAIL (rateo)", sequence=610, category="COMP", struct=["IT_ORD", "IT13"],
+    R(code="INAIL", name="Premio INAIL (rateo)", sequence=610, category="COMP", struct=["IT_ORD", "IT13", "IT_CESS"],
       register="INAIL - premio", appears_on_payslip=False, amount_select="code",
       amount_python_compute="result = arrotonda(IMP_PREV * payroll.INAIL_TASSO / 1000)"),
-    R(code="TFR", name="Quota TFR maturata", sequence=620, category="COMP", struct=["IT_ORD", "IT13"],
+    R(code="TFR", name="Quota TFR maturata", sequence=620, category="COMP", struct=["IT_ORD", "IT13", "IT_CESS"],
       register="Fondo TFR", appears_on_payslip=False, amount_select="code",
       amount_python_compute="result = arrotonda(GROSS / payroll.TFR_DIVISORE)"),
-    R(code="COSTO", name="Costo aziendale", sequence=700, category="TOT", struct=["IT_ORD", "IT13"],
+    R(code="COSTO", name="Costo aziendale", sequence=700, category="TOT", struct=["IT_ORD", "IT13", "IT_CESS"],
+      appears_on_payslip=False, amount_select="code", amount_python_compute=COSTO_CODE,
+      note="Le somme della categoria CRED non sono un costo: si recuperano in F24. Il TFR liquidato (TFRC) era già "
+           "un costo negli anni in cui è maturato."),
+    # --- malattia: la quota a carico dell'INPS esce dalla retribuzione e torna come indennità anticipata
+    R(code="MAL_RID", name="Malattia: quota a carico INPS non dovuta dall'azienda", sequence=42, category="ASS",
+      struct=["IT_ORD"], condition_select=PY, condition_python="result = payroll.mal_inps > 0",
+      amount_select="code", amount_python_compute="result = -payroll.mal_inps",
+      note="Per i giorni indennizzati dall'INPS l'azienda non paga la retribuzione: la toglie dal lordo (meno "
+           "contributi) e la ripaga come indennità INPS anticipata. I primi 3 giorni (carenza) restano a carico "
+           "dell'azienda: per il CCNL metalmeccanico l'azienda integra fino al 100%."),
+    R(code="MAL_INPS", name="Indennità di malattia INPS (anticipata)", sequence=43, category="INPS_IND",
+      struct=["IT_ORD"], register="INPS - indennità anticipate (recupero)", condition_select=PY,
+      condition_python="result = payroll.mal_inps > 0", amount_select="code",
+      amount_python_compute="result = payroll.mal_inps",
+      note="Giorni dell'evento 4-20 al 50% e 21-180 al 66,67% della retribuzione media giornaliera "
+           "(mensile / 30, semplificazione didattica). L'azienda la paga in busta e la recupera nel DM10 (F24)."),
+    # --- conguaglio IRPEF di fine anno, nella busta di dicembre
+    R(code="CONG_IRPEF", name="Conguaglio IRPEF di fine anno", sequence=255, category="FISC", struct=["IT_ORD"],
+      register="Erario - ritenute IRPEF (1001)", condition_select=PY,
+      condition_python="result = payslip.date_to.month == 12 and payroll.cong_giorni > 0",
+      amount_select="code", amount_python_compute=CONG_CODE,
+      note="Imposta vera dell'anno (scaglioni sul reddito di tutto l'anno meno le detrazioni annue, quella da lavoro "
+           "per i giorni lavorati) meno le ritenute già fatte. Negativo = altra IRPEF da trattenere; positivo = "
+           "rimborso in busta. Comprende la tredicesima: va calcolato dopo la busta della tredicesima."),
+    R(code="CONG_CUNEO", name="Conguaglio somma esente cuneo fiscale", sequence=315, category="CRED", struct=["IT_ORD"],
+      register="Credito - somma esente cuneo fiscale", condition_select=PY,
+      condition_python="result = payslip.date_to.month == 12 and payroll.cong_giorni > 0",
+      amount_select="code",
+      amount_python_compute=("spettante = tools.cuneo_indennita(payroll.cong_imponibile + IMP_FISC)\n"
+                             "corrente = result_rules.IND_CUNEO and result_rules.IND_CUNEO.total or 0\n"
+                             "result = arrotonda(spettante - payroll.cong_cuneo - corrente)"),
+      note="La somma esente spetta sul reddito VERO dell'anno (fino a 20.000 €): a dicembre si dà quello che manca "
+           "o si recupera quello dato in più. Il trattamento integrativo non si conguaglia (semplificazione)."),
+    # --- cessazione: busta di liquidazione (struttura IT_CESS)
+    R(code="ORARIA_C", name="Paga oraria (liquidazione)", sequence=10, category=None, struct=["IT_CESS"],
       appears_on_payslip=False, amount_select="code",
-      amount_python_compute="result = GROSS + categories.ESENTE - categories.CRED + categories.COMP",
-      note="Le somme della categoria CRED non sono un costo: si recuperano in F24."),
+      amount_python_compute="result = arrotonda(contract.retribuzione_mensile / contract.divisore_orario, 5)"),
+    R(code="FERIE_NG", name="Indennità per ferie e permessi non goduti", sequence=20, category="ALW",
+      struct=["IT_CESS"], condition_select=PY, condition_python="result = inputs.FERIE_ORE and inputs.FERIE_ORE.amount > 0",
+      amount_select="percentage", quantity="inputs.FERIE_ORE.amount", amount_percentage=100.0,
+      amount_percentage_base="ORARIA_C", inputs=[("FERIE_ORE", "Ore di ferie e permessi non goduti")],
+      note="Alla cessazione le ferie e i permessi residui si pagano: ore residue × paga oraria."),
+    R(code="RATEI13", name="Ratei di tredicesima", sequence=21, category="BASIC", struct=["IT_CESS"],
+      condition_select=PY, condition_python="result = inputs.RATEI_13 and inputs.RATEI_13.amount > 0",
+      amount_select="code",
+      amount_python_compute="result_qty = inputs.RATEI_13.amount\nresult = arrotonda(contract.retribuzione_mensile / 12)",
+      inputs=[("RATEI_13", "Ratei di tredicesima maturati e non pagati")]),
+    R(code="IRPEF_CESS", name="IRPEF: conguaglio di fine rapporto", sequence=250, category="FISC", struct=["IT_CESS"],
+      register="Erario - ritenute IRPEF (1001)", amount_select="code", amount_python_compute=CESS_IRPEF_CODE,
+      note="Nell'ultima busta si fa il conguaglio: IRPEF dell'anno (con le competenze di fine rapporto) meno le "
+           "ritenute già fatte."),
+    R(code="TFR_LIQ", name="TFR liquidato (lordo)", sequence=450, category="TFRC", struct=["IT_CESS"],
+      condition_select=PY, condition_python="result = inputs.TFR_LORDO and inputs.TFR_LORDO.amount > 0",
+      amount_select="code", amount_python_compute="result = inputs.TFR_LORDO.amount",
+      inputs=[("TFR_LORDO", "TFR lordo da liquidare (dal prospetto)"), ("TFR_RIVAL", "di cui rivalutazioni"),
+              ("TFR_RIV_ANNO", "rivalutazione dell'anno (imposta sostitutiva)"),
+              ("TFR_ALIQ", "Aliquota media di tassazione separata %")],
+      note="Gli importi arrivano dal prospetto della cessazione (Cessazioni → TFR)."),
+    R(code="RIT_TFR", name="Ritenuta sul TFR (tassazione separata)", sequence=460, category="FISC", struct=["IT_CESS"],
+      register="Erario - ritenute TFR (1012)", condition_select=PY,
+      condition_python="result = inputs.TFR_LORDO and inputs.TFR_LORDO.amount > 0", amount_select="code",
+      amount_python_compute="result = -arrotonda((inputs.TFR_LORDO.amount - inputs.TFR_RIVAL.amount) * inputs.TFR_ALIQ.amount / 100)",
+      note="Le rivalutazioni non si tassano qui: hanno già l'imposta sostitutiva."),
+    R(code="SOST_TFR", name="Imposta sostitutiva sulla rivalutazione dell'anno", sequence=461, category="FISC",
+      struct=["IT_CESS"], register="Erario - imposta sostitutiva rivalutazione TFR (1713)", condition_select=PY,
+      condition_python="result = inputs.TFR_RIV_ANNO and inputs.TFR_RIV_ANNO.amount > 0", amount_select="code",
+      amount_python_compute="result = -arrotonda(inputs.TFR_RIV_ANNO.amount * payroll.TFR_SOSTITUTIVA / 100)"),
     # --- tredicesima
     R(code="TREDICESIMA", name="Tredicesima mensilità", sequence=1, category="BASIC", struct=["IT13"],
       amount_select="code",
@@ -210,6 +305,8 @@ STRUTTURE = [
      "Eredita le regole della struttura BASE (padre) e aggiunge contributi, IRPEF, detrazioni, cuneo."),
     ("IT13", "CCNL Metalmeccanico Industria - tredicesima", None,
      "Struttura senza padre: riusa alcune regole della mensile (le regole sono condivise tra strutture)."),
+    ("IT_CESS", "Liquidazione di fine rapporto (TFR, ferie, ratei)", None,
+     "Busta della cessazione: ferie non godute, ratei di tredicesima, conguaglio IRPEF, TFR con tassazione separata."),
 ]
 
 LIVELLI = [
@@ -308,6 +405,11 @@ ESERCITAZIONI = [
     ("Registri contributi e F24",
      "Configurazione → Registri contributi → Report: stampa le righe di settembre per INPS ed Erario 1001. "
      "Confronta con la pagina Versamenti F24 e prepara a mano il modello F24 con scadenza 16/10/2026.", "avanzato"),
+    ("Esercizio passo passo: ottobre-dicembre 2026",
+     "Segui la finestra a destra (Academy → Esercizio passo passo): malattia, ferie e permessi, buste di ottobre con "
+     "straordinari, trasferte e premio, F24, contabilizzazione e Libro unico; novembre e la cessazione di Esposito con il "
+     "TFR; tredicesima e conguaglio di dicembre; Certificazione Unica. Alla fine scrivi che cosa ti ha sorpreso del conguaglio.",
+     "medio"),
     ("Verifica critica",
      "Le aliquote e i parametri sono didattici. Scegli 3 valori (aliquota INPS, scaglioni IRPEF, massimale 1ª fascia), "
      "cercali su fonti ufficiali (INPS, Agenzia delle Entrate, Gazzetta Ufficiale), correggili e misura l'effetto.",
@@ -382,21 +484,7 @@ def seed_workspace(ws: Workspace, with_example=True):
         db.session.add(structs[code])
     rules = {}
     for spec in REGOLE:
-        spec = dict(spec)
-        struct_codes = spec.pop("struct", [])
-        cat = spec.pop("category", None)
-        reg = spec.pop("register", None)
-        parent = spec.pop("parent", None)
-        inputs = spec.pop("inputs", [])
-        rule = SalaryRule(workspace_id=ws_id, category=cats.get(cat) if cat else None,
-                          register=regs.get(reg) if reg else None,
-                          parent_rule=rules.get(parent) if parent else None, **spec)
-        for icode, iname in inputs:
-            rule.input_ids.append(RuleInput(code=icode, name=iname))
-        for sc in struct_codes:
-            structs[sc].rule_ids.append(rule)
-        db.session.add(rule)
-        rules[rule.code] = rule
+        _crea_regola(ws_id, spec, cats, regs, structs, rules)
     db.session.flush()
 
     emps = {}
@@ -452,6 +540,101 @@ def seed_workspace(ws: Workspace, with_example=True):
         run.state = "close"
         if errors:
             raise RuntimeError("Errore nei dati demo: " + "; ".join(errors))
+        db.session.flush()
+        seed_progressivi(ws)
+    db.session.commit()
+
+
+def _crea_regola(ws_id, spec, cats, regs, structs, rules):
+    spec = dict(spec)
+    struct_codes = spec.pop("struct", [])
+    cat = spec.pop("category", None)
+    reg = spec.pop("register", None)
+    parent = spec.pop("parent", None)
+    inputs = spec.pop("inputs", [])
+    rule = SalaryRule(workspace_id=ws_id, category=cats.get(cat) if cat else None,
+                      register=regs.get(reg) if reg else None,
+                      parent_rule=rules.get(parent) if parent else None, **spec)
+    for icode, iname in inputs:
+        rule.input_ids.append(RuleInput(code=icode, name=iname))
+    for sc in struct_codes:
+        if sc in structs:
+            structs[sc].rule_ids.append(rule)
+    db.session.add(rule)
+    rules[rule.code] = rule
+    return rule
+
+
+def seed_progressivi(ws: Workspace, anno=2026):
+    """Progressivi gennaio-agosto dal «gestionale precedente»: i mesi di rapporto prima di settembre × i valori
+    della busta di settembre (approssimazione didattica dichiarata)."""
+    from .hr_service import mesi_maturati
+    from .models import Payslip, ProgressivoAnnuo
+    if ProgressivoAnnuo.query.filter_by(workspace_id=ws.id, anno=anno).first():
+        return
+    sett = (Payslip.query.filter(Payslip.workspace_id == ws.id, Payslip.state == "done", Payslip.credit_note.is_(False),
+                                 Payslip.date_from >= date(anno, 9, 1), Payslip.date_to <= date(anno, 9, 30)).all())
+    for slip in sett:
+        if not slip.contract:
+            continue
+        mesi = mesi_maturati(slip.contract, anno, date(anno, 8, 31))
+        if mesi <= 0:
+            continue
+        t = slip.get_salary_line_total
+        db.session.add(ProgressivoAnnuo(
+            workspace_id=ws.id, employee_id=slip.employee_id, anno=anno, mesi=mesi,
+            imponibile_previdenziale=round(t("IMP_PREV") * mesi, 2),
+            inps_dipendente=round(-(t("INPS_DIP") + t("INPS_AGG")) * mesi, 2),
+            imponibile_fiscale=round(t("IMP_FISC") * mesi, 2), irpef_trattenuta=round(-t("IRPEF") * mesi, 2),
+            addizionali=round(-(t("ADD_REG") + t("ADD_COM")) * mesi, 2), cuneo_indennita=round(t("IND_CUNEO") * mesi, 2),
+            quota_tfr=round(t("TFR") * mesi, 2)))
+
+
+def upgrade_workspace(ws: Workspace):
+    """Porta un ambiente già creato alla versione attuale: aggiunge parametri, categorie, registri, strutture e
+    regole nuove (malattia, conguaglio, cessazione e TFR) senza toccare il lavoro dell'allievo. Le formule di
+    NET, IMP_FISC e COSTO si aggiornano solo se sono ancora quelle originali."""
+    ws_id = ws.id
+    from .models import ProgressivoAnnuo  # noqa: F401
+    have = {p.codice for p in Parametro.query.filter_by(workspace_id=ws_id)}
+    for cod, descr, val, unita in PARAMETRI:
+        if cod not in have:
+            db.session.add(Parametro(workspace_id=ws_id, codice=cod, descrizione=descr, valore=val, unita=unita))
+    cats = {c.code: c for c in SalaryRuleCategory.query.filter_by(workspace_id=ws_id) if c.code}
+    for code, name, parent, note in CATEGORIE:
+        if code not in cats:
+            cats[code] = SalaryRuleCategory(workspace_id=ws_id, code=code, name=name, note=note, parent=cats.get(parent))
+            db.session.add(cats[code])
+    regs = {r.name: r for r in ContributionRegister.query.filter_by(workspace_id=ws_id)}
+    partners = {p.name: p for p in Partner.query.filter_by(workspace_id=ws_id)}
+    for name, pname, sez, cod, tipo in REGISTRI:
+        if name not in regs:
+            if pname not in partners:
+                partners[pname] = Partner(workspace_id=ws_id, name=pname)
+                db.session.add(partners[pname])
+            regs[name] = ContributionRegister(workspace_id=ws_id, name=name, partner=partners[pname],
+                                              f24_sezione=sez, f24_codice=cod, f24_tipo=tipo)
+            db.session.add(regs[name])
+    structs = {st.code: st for st in PayrollStructure.query.filter_by(workspace_id=ws_id) if st.code}
+    for code, name, parent, note in STRUTTURE:
+        if code not in structs:
+            structs[code] = PayrollStructure(workspace_id=ws_id, code=code, name=name, note=note, parent=structs.get(parent))
+            db.session.add(structs[code])
+    db.session.flush()
+    rules = {r.code: r for r in SalaryRule.query.filter_by(workspace_id=ws_id) if r.code}
+    for spec in REGOLE:
+        r = rules.get(spec["code"])
+        if r is None:
+            _crea_regola(ws_id, spec, cats, regs, structs, rules)
+            continue
+        for sc in spec.get("struct", []):
+            if sc in structs and r not in structs[sc].rule_ids:
+                structs[sc].rule_ids.append(r)
+        vecchia_nuova = FORMULE_PRECEDENTI.get(spec["code"])
+        if vecchia_nuova and (r.amount_python_compute or "").strip() == vecchia_nuova[0]:
+            r.amount_python_compute = vecchia_nuova[1]
+    db.session.flush()
+    seed_progressivi(ws)
     db.session.commit()
 
 
@@ -485,11 +668,14 @@ def reset_workspace(ws: Workspace):
 
 
 def seed_esercitazioni():
-    if Esercitazione.query.count():
-        return
+    """Elenco delle esercitazioni; quelle aggiunte dopo si inseriscono anche nei database già popolati."""
+    presenti = {e.titolo for e in Esercitazione.query.all()}
+    n = len(presenti)
     for i, (titolo, testo, livello) in enumerate(ESERCITAZIONI, start=1):
-        db.session.add(Esercitazione(ordine=i, titolo=titolo, testo=testo, livello=livello))
+        if titolo not in presenti:
+            n += 1
+            db.session.add(Esercitazione(ordine=i if not presenti else n, titolo=titolo, testo=testo, livello=livello))
     db.session.commit()
 
 
-__all__ = ["seed_workspace", "reset_workspace", "clear_workspace", "seed_esercitazioni", "PayslipInput"]
+__all__ = ["seed_workspace", "reset_workspace", "clear_workspace", "seed_esercitazioni", "upgrade_workspace", "PayslipInput"]

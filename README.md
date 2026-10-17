@@ -44,6 +44,35 @@ ogni regola già calcolata. Come in Odoo le **trattenute sono negative**. I test
 * `tools.*` (estensione di `_get_tools_dict`) e `payroll.*` (estensione di `get_payroll_dict`): funzioni fiscali, parametri, scaglioni.
 * **Versamenti F24** dai registri contributi (1001, 3802, 3848, crediti 1655 e cuneo, INPS), festività italiane con Pasqua calcolata.
 
+## Struttura: una cartella per attività
+
+Ogni attività è un blueprint Flask in `masterpayroll/blueprints/<attività>/`, con il suo `__init__.py` (le rotte) e
+un HTML per ogni pagina in `templates/<attività>/`: `accesso`, `cruscotto`, `dipendenti`, `contratti`, `orari`,
+`assenze`, `ferie_permessi`, `buste_paga`, `gruppi`, `cessazioni`, `regole`, `registri`, `impostazioni`, `f24`, `lul`,
+`contabilita`, `cu`, `posta`, `esercizio`, `docente`. In `masterpayroll/templates/` restano solo `base.html` e `_macros.html`.
+
+## Funzioni aggiunte (ottobre 2026)
+
+* **Malattia**: giorni dell'evento per fascia (carenza 1-3 a carico azienda, 4-20 INPS 50%, 21-180 INPS 66,67%);
+  regole `MAL_RID` (la quota INPS esce dal lordo, quindi dai contributi) e `MAL_INPS` (indennità anticipata, imponibile
+  IRPEF), recuperata nell'F24 come credito INPS.
+* **Ferie e permessi**: maturato in dodicesimi (160 h ferie, 104 h ROL ed ex festività, riproporzionati al part-time), goduto dalle assenze, residuo.
+* **Cessazione e TFR**: prospetto del fondo anno per anno (quota ÷ 13,5, 0,50% IVS, rivalutazione e imposta sostitutiva),
+  tassazione separata con l'aliquota media; busta di liquidazione `IT_CESS` con ferie non godute, ratei di tredicesima,
+  conguaglio IRPEF di fine rapporto, ritenuta 1012 e sostitutiva 1713.
+* **Conguaglio di fine anno** nella busta di dicembre: `CONG_IRPEF` (imposta dell'anno meno ritenute, detrazione da lavoro per
+  i giorni lavorati) e `CONG_CUNEO`. I mesi gennaio-agosto arrivano come **progressivi** del gestionale precedente.
+* **Libro unico del lavoro**, **contabilizzazione delle paghe** (prima nota in partita doppia), **Certificazione Unica**.
+* F24: i contributi INPS si sommano per valore (dipendente + azienda) e l'indennità di malattia si scala come credito.
+* Gli ambienti già creati si aggiornano da soli al primo accesso (`seed.upgrade_workspace`), senza perdere il lavoro.
+
+## Esercizio passo passo
+
+Su ogni pagina c'è la finestra a destra **Esercizio passo passo** (ottobre–dicembre 2026, 30 passi): per ogni azione
+indica la pagina («Apri la pagina»), i dati da scrivere e il risultato atteso. Le operazioni si spuntano da sole
+controllando i dati dell'allievo; le letture si confermano con «Fatto». Panoramica in Academy → Esercizio passo passo;
+nell'area docente la colonna «Guida» mostra a che punto è ogni allievo.
+
 ## Academy
 
 Area docente: creazione della classe in blocco con password, **ore reali di attività**, consegne delle
@@ -56,7 +85,7 @@ ripristino, report CSV. Le formule scritte dagli allievi passano da un valutator
 ```bash
 pip install -r requirements.txt
 ADMIN_PASSWORD=una-password python app.py      # http://localhost:5000  utente: docente
-python -m pytest                               # 33 test
+python -m pytest                               # 35 test
 ```
 
 ## Deploy su Railway

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, row, chatter, badge %}
+{% block title %}{{ e.name if e else 'Nuovo dipendente' }}{% endblock %}
+{% block controlpanel %}{{ cp([("Dipendenti", url_for('dipendenti.employees')), (e.name if e else 'Nuovo', None)], "hr.employee") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+<input type="hidden" name="tab" id="tabfield" value="{{ tab }}">
+<div class="o-form-header"><div class="d-flex gap-1"><button class="btn btn-sm btn-primary" name="action" value="save">Salva</button>
+  {% if e %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('contratti.contract', employee_id=e.id) }}">Nuovo contratto</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('buste_paga.payslip_new', employee_id=e.id) }}">Nuova busta paga</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('assenze.leave', employee_id=e.id) }}">Nuova assenza</a>
+  <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare il dipendente con contratti e buste non confermate?"><i class="bi bi-trash"></i></button>{% endif %}</div></div>
+<div class="o-sheet">
+  {% if e %}<div class="d-flex justify-content-end gap-2 mb-2">
+    <a class="o-smart" href="{{ url_for('buste_paga.payslips', employee_id=e.id) }}"><i class="bi bi-receipt"></i><span><b>{{ e.payslip_count }}</b> Buste paga</span></a>
+    <a class="o-smart" href="{{ url_for('contratti.contracts') }}"><i class="bi bi-file-earmark-text"></i><span><b>{{ e.contract_ids|length }}</b> Contratti</span></a>
+    <a class="o-smart" href="{{ url_for('assenze.leaves', employee_id=e.id) }}"><i class="bi bi-calendar-x"></i><span><b>{{ e.leave_ids|length }}</b> Assenze</span></a>
+  </div>{% endif %}
+  <div class="row">
+    <div class="col-md-3"><label class="small text-muted">Matricola</label><input name="registration_number" value="{{ e.registration_number if e else nuova_matricola }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="small text-muted">Cognome</label><input name="last_name" value="{{ e.last_name if e }}" class="form-control" style="font-weight:600" required></div>
+    <div class="col-md-5"><label class="small text-muted">Nome</label><input name="first_name" value="{{ e.first_name if e }}" class="form-control" style="font-weight:600" required></div>
+  </div>
+  <div class="row mt-2"><div class="col-lg-6">
+    {% call row("Mansione") %}<input name="job_title" value="{{ e.job_title if e }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Reparto") %}<input name="department" list="reparti" value="{{ e.department if e }}" class="form-control form-control-sm"><datalist id="reparti">{% for r in ['Taglio','Piega','Saldatura','Packaging','Amministrazione','Commerciale','Direzione'] %}<option>{{ r }}</option>{% endfor %}</datalist>{% endcall %}
+    {% call row("Qualifica") %}<select name="qualifica" class="form-select form-select-sm">{% for q in qualifiche %}<option {{ 'selected' if e and e.qualifica == q }}>{{ q }}</option>{% endfor %}</select>{% endcall %}
+  </div><div class="col-lg-6">
+    {% call row("Email lavoro") %}<input name="work_email" value="{{ e.work_email if e }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Telefono lavoro") %}<input name="work_phone" value="{{ e.work_phone if e }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Attivo") %}<input type="checkbox" class="form-check-input" name="active" {{ 'checked' if not e or e.active }}>{% endcall %}
+  </div></div>
+  <ul class="nav nav-tabs o-notebook mt-3">
+    {% for k, l in [('work','Informazioni di lavoro'),('private','Informazioni private'),('family','Familiari a carico'),('contracts','Contratti')] %}
+    <li class="nav-item"><button type="button" class="nav-link {{ 'active' if tab == k }}" data-bs-toggle="tab" data-bs-target="#t-{{ k }}" data-tab="{{ k }}">{{ l }}</button></li>{% endfor %}
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade {{ 'show active' if tab == 'work' }}" id="t-work"><div class="row"><div class="col-lg-6">
+      {% call row("Orario di lavoro", "Usato per i giorni lavorati se il contratto non ne indica uno") %}<select name="resource_calendar_id" class="form-select form-select-sm"><option value=""></option>{% for c in calendars %}<option value="{{ c.id }}" {{ 'selected' if e and e.resource_calendar_id == c.id }}>{{ c.name }}</option>{% endfor %}</select>{% endcall %}
+    </div></div></div>
+    <div class="tab-pane fade {{ 'show active' if tab == 'private' }}" id="t-private"><div class="row"><div class="col-lg-6">
+      {% call row("Codice fiscale") %}<input name="identification_id" maxlength="16" value="{{ e.identification_id if e }}" class="form-control form-control-sm text-uppercase">{% endcall %}
+      {% call row("Data di nascita") %}<input type="date" name="birthday" value="{{ e.birthday.isoformat() if e and e.birthday }}" class="form-control form-control-sm">{% endcall %}
+      {% call row("Luogo di nascita") %}<input name="place_of_birth" value="{{ e.place_of_birth if e }}" class="form-control form-control-sm">{% endcall %}
+    </div><div class="col-lg-6">
+      {% call row("Indirizzo") %}<input name="private_street" value="{{ e.private_street if e }}" class="form-control form-control-sm">{% endcall %}
+      {% call row("Comune di residenza") %}<input name="private_city" value="{{ e.private_city if e }}" class="form-control form-control-sm">{% endcall %}
+      {% call row("Email privata") %}<input name="private_email" value="{{ e.private_email if e }}" class="form-control form-control-sm">{% endcall %}
+      {% call row("IBAN") %}<input name="bank_account" value="{{ e.bank_account if e }}" class="form-control form-control-sm code">{% endcall %}
+    </div></div><p class="small text-muted mb-0">Dati fittizi: non inserire dati di persone reali.</p></div>
+    <div class="tab-pane fade {{ 'show active' if tab == 'family' }}" id="t-family">
+      <p class="small text-muted">Usati dalla regola <code>DETR_FAM</code>: coniuge a carico, figli dai 21 ai 30 anni (sotto i 21 c'è l'Assegno Unico INPS), altri familiari (ascendenti conviventi). Nelle regole: <code>employee.familiari</code>.</p>
+      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Relazione</th><th>Nome</th><th>Codice fiscale</th><th>Data di nascita</th><th>Età oggi</th><th class="num">% a carico</th><th></th></tr></thead><tbody>
+      {% for f in (e.familiari if e else []) %}<tr>
+        <td><select name="fam_rel_{{ f.id }}" class="form-select form-select-sm">{% for k, l in [('coniuge','Coniuge'),('figlio','Figlio/a'),('altro','Altro familiare')] %}<option value="{{ k }}" {{ 'selected' if f.relazione == k }}>{{ l }}</option>{% endfor %}</select></td>
+        <td><input name="fam_nome_{{ f.id }}" value="{{ f.nome }}" class="form-control form-control-sm"></td><td><input name="fam_cf_{{ f.id }}" value="{{ f.codice_fiscale }}" class="form-control form-control-sm text-uppercase" maxlength="16"></td>
+        <td><input type="date" name="fam_nascita_{{ f.id }}" value="{{ f.data_nascita.isoformat() if f.data_nascita }}" class="form-control form-control-sm"></td><td class="small">{{ f.eta_al(oggi) if f.data_nascita }}</td>
+        <td><select name="fam_perc_{{ f.id }}" class="form-select form-select-sm">{% for p in [100, 50] %}<option value="{{ p }}" {{ 'selected' if f.percentuale == p }}>{{ p }}%</option>{% endfor %}</select></td>
+        <td><input type="checkbox" class="form-check-input" name="fam_del_{{ f.id }}"> <i class="bi bi-trash text-muted small"></i></td></tr>{% endfor %}
+      <tr class="table-light"><td><select name="fam_new_rel" class="form-select form-select-sm"><option value="figlio">Figlio/a</option><option value="coniuge">Coniuge</option><option value="altro">Altro familiare</option></select></td>
+        <td><input name="fam_new_nome" class="form-control form-control-sm" placeholder="Aggiungi familiare…"></td><td><input name="fam_new_cf" class="form-control form-control-sm text-uppercase" maxlength="16"></td>
+        <td><input type="date" name="fam_new_nascita" class="form-control form-control-sm"></td><td></td>
+        <td><select name="fam_new_perc" class="form-select form-select-sm"><option value="100">100%</option><option value="50">50%</option></select></td><td></td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="tab-pane fade {{ 'show active' if tab == 'contracts' }}" id="t-contracts">
+      <table class="table table-sm table-hover"><thead><tr><th>Contratto</th><th>Dal</th><th>Al</th><th>Struttura</th><th class="num">Paga base</th><th>Stato</th></tr></thead><tbody>
+      {% for c in (e.contract_ids|reverse if e else []) %}<tr class="click" data-href="{{ url_for('contratti.contract', con_id=c.id) }}"><td>{{ c.name }}</td><td>{{ c.date_start|data }}</td><td>{{ c.date_end|data }}</td><td class="small">{{ c.struct.code if c.struct }}</td><td class="num">{{ c.wage|euro }}</td><td>{{ badge(c.state, CONTRACT_STATES) }}</td></tr>
+      {% else %}<tr><td colspan="6" class="text-muted small">Nessun contratto.</td></tr>{% endfor %}</tbody></table>
+      {% if e %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('contratti.contract', employee_id=e.id) }}">Nuovo contratto</a>{% endif %}
+    </div>
+  </div>
+</div>
+</form>
+{% if e %}{{ chatter(messages, url_for('dipendenti.employee', emp_id=e.id)) }}{% endif %}
+{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('[data-tab]').forEach(function (b) { b.addEventListener('shown.bs.tab', function () { document.getElementById('tabfield').value = b.dataset.tab; }); });</script>{% endblock %}

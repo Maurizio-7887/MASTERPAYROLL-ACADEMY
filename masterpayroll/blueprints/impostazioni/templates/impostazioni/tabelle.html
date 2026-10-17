@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp %}
+{% block title %}Tabelle{% endblock %}
+{% block controlpanel %}{{ cp([("Localizzazione italiana · tabelle", None)], "l10n_it_payroll") }}{% endblock %}
+{% block content %}
+<div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle"></i> Valori <strong>didattici e indicativi</strong>: prima di usarli fuori dall'aula vanno verificati su fonti ufficiali (INPS, Agenzia delle Entrate, testo del CCNL). Le aliquote INPS sono nelle regole <a href="{{ url_for('regole.rules', q='inps') }}">INPS_DIP / INPS_DITTA</a> (importo a percentuale), come fa Odoo.</div>
+<div class="row g-3">
+<div class="col-xl-6">
+  <form method="post" class="card mb-3" id="parametri">{{ csrf() }}<input type="hidden" name="sezione" value="parametri">
+    <div class="card-header">Parametri <span class="small text-muted">— nelle regole: <code>payroll.CODICE</code></span></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Codice</th><th>Descrizione</th><th class="num">Valore</th><th></th><th></th></tr></thead>
+      {% for p in parametri %}<tr><td class="code">{{ p.codice }}</td><td class="small">{{ p.descrizione }}</td>
+        <td><input name="p_{{ p.id }}" class="form-control form-control-sm text-end" style="width:105px" value="{{ p.valore|inval }}"></td><td class="small">{{ p.unita }}</td>
+        <td><input type="checkbox" class="form-check-input" name="del_{{ p.id }}" title="Elimina"></td></tr>{% endfor %}
+      <tr class="table-light"><td><input name="nuovo_codice" class="form-control form-control-sm code" placeholder="NUOVO"></td><td><input name="nuovo_descr" class="form-control form-control-sm" placeholder="descrizione"></td>
+        <td><input name="nuovo_valore" class="form-control form-control-sm text-end" style="width:105px"></td><td><input name="nuovo_unita" class="form-control form-control-sm" style="width:50px"></td><td></td></tr>
+    </table></div>
+    <div class="card-body py-2"><button class="btn btn-sm btn-primary">Salva parametri</button></div>
+  </form>
+  <form method="post" class="card mb-3" id="scaglioni">{{ csrf() }}<input type="hidden" name="sezione" value="scaglioni">
+    <div class="card-header">Scaglioni IRPEF annui <span class="small text-muted">— usati da <code>tools.irpef_annua()</code></span></div>
+    <table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Da €</th><th>A € (vuoto = oltre)</th><th>Aliquota %</th><th>Elimina</th></tr></thead>
+      {% for s in scaglioni %}<tr><td><input name="da_{{ s.id }}" class="form-control form-control-sm text-end" value="{{ s.da|inval }}"></td>
+        <td><input name="a_{{ s.id }}" class="form-control form-control-sm text-end" value="{{ s.a|inval if s.a is not none }}"></td>
+        <td><input name="al_{{ s.id }}" class="form-control form-control-sm text-end" value="{{ s.aliquota|inval }}"></td>
+        <td><input type="checkbox" class="form-check-input" name="del_{{ s.id }}"></td></tr>{% endfor %}
+      <tr class="table-light"><td><input name="nuovo_da" class="form-control form-control-sm text-end" placeholder="nuovo"></td><td><input name="nuovo_a" class="form-control form-control-sm text-end"></td>
+        <td><input name="nuovo_aliq" class="form-control form-control-sm text-end"></td><td></td></tr>
+    </table>
+    <div class="card-body py-2"><button class="btn btn-sm btn-primary">Salva scaglioni</button></div>
+  </form>
+</div>
+<div class="col-xl-6">
+  <form method="post" class="card mb-3" id="livelli">{{ csrf() }}<input type="hidden" name="sezione" value="livelli">
+    <div class="card-header">Livelli e minimi CCNL Metalmeccanica Industria</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Liv.</th><th>Descrizione</th><th class="num">Minimo €</th><th class="num">Scatto €</th></tr></thead>
+      {% for l in livelli %}<tr><td class="fw-bold">{{ l.codice }}</td><td><input name="ld_{{ l.id }}" class="form-control form-control-sm" value="{{ l.descrizione }}"></td>
+        <td><input name="lm_{{ l.id }}" class="form-control form-control-sm text-end" style="width:95px" value="{{ l.minimo|inval }}"></td>
+        <td><input name="ls_{{ l.id }}" class="form-control form-control-sm text-end" style="width:75px" value="{{ l.scatto_importo|inval }}"></td></tr>{% endfor %}
+      <tr class="table-light"><td><input name="nuovo_livello" class="form-control form-control-sm" style="width:55px" placeholder="nuovo"></td><td><input name="nuovo_livello_descr" class="form-control form-control-sm"></td>
+        <td><input name="nuovo_livello_minimo" class="form-control form-control-sm text-end" style="width:95px"></td><td><input name="nuovo_livello_scatto" class="form-control form-control-sm text-end" style="width:75px"></td></tr>
+    </table></div>
+    <div class="card-body py-2 d-flex gap-3 align-items-center flex-wrap">
+      <button class="btn btn-sm btn-primary">Salva livelli</button>
+      <div class="form-check small"><input class="form-check-input" type="checkbox" name="aggiorna_contratti" id="agg"><label class="form-check-label" for="agg">rinnovo CCNL: applica i nuovi minimi ai contratti in corso</label></div>
+    </div>
+  </form>
+  <form method="post" class="card mb-3" id="azienda">{{ csrf() }}<input type="hidden" name="sezione" value="azienda">
+    <div class="card-header">Dati azienda <span class="o-model">res.company</span></div>
+    <div class="card-body row g-2">
+      {% for campo, lbl in [('name','Ragione sociale'),('vat','Partita IVA'),('street','Indirizzo'),('city','CAP, città'),('email','Email'),('phone','Telefono'),('ccnl','CCNL applicato'),('matricola_inps','Matricola INPS'),('pat_inail','PAT INAIL')] %}
+      <div class="col-md-6"><label class="form-label small mb-0">{{ lbl }}</label><input name="{{ campo }}" class="form-control form-control-sm" value="{{ ws[campo] }}"></div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-primary">Salva dati azienda</button></div>
+    </div>
+  </form>
+</div>
+</div>
+{% endblock %}

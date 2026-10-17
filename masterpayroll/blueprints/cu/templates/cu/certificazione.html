@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Certificazione Unica {{ anno }}{% endblock %}
+{% block controlpanel %}
+{% call cp([("Certificazione Unica " ~ anno, None)], "CU · redditi di lavoro dipendente") %}
+<form class="d-flex gap-2 align-items-center no-print">
+  <select name="employee_id" class="form-select form-select-sm">{% for x in dip %}<option value="{{ x.id }}" {{ 'selected' if e and x.id == e.id }}>{{ x.name }}</option>{% endfor %}</select>
+  <input name="anno" type="number" value="{{ anno }}" class="form-control form-control-sm" style="width:90px">
+  <button class="btn btn-sm btn-primary">Mostra</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i></button>
+</form>
+{% endcall %}
+{% endblock %}
+{% block content %}
+{% if e %}
+<div class="o-sheet alone mb-3">
+  <div class="d-flex justify-content-between flex-wrap mb-2"><div><div class="small text-muted">Sostituto d'imposta</div><strong>{{ ws.name }}</strong> · {{ ws.vat }}</div>
+    <div class="text-end"><div class="small text-muted">Percipiente</div><strong>{{ e.name }}</strong> · {{ e.identification_id }}</div></div>
+  <table class="table table-sm mb-0">
+    <thead><tr><th>Punto</th><th>Descrizione</th><th class="num">Importo</th></tr></thead>
+    <tr><td class="code">1</td><td>Redditi di lavoro dipendente (imponibile fiscale dell'anno)</td><td class="num fw-semibold">{{ (d.IMP_FISC or 0)|euro }}</td></tr>
+    <tr><td class="code">21</td><td>Ritenute IRPEF (dopo il conguaglio)</td><td class="num">{{ (d.IRPEF or 0)|euro }}</td></tr>
+    <tr><td class="code">22</td><td>Addizionale regionale trattenuta</td><td class="num">{{ (d.ADD_REG or 0)|euro }}</td></tr>
+    <tr><td class="code">27</td><td>Addizionale comunale (saldo) trattenuta</td><td class="num">{{ (d.ADD_COM or 0)|euro }}</td></tr>
+    <tr><td class="code">391</td><td>Trattamento integrativo erogato</td><td class="num">{{ (d.TRATT_INT or 0)|euro }}</td></tr>
+    <tr><td class="code">701</td><td>Somma esente del cuneo fiscale (non tassata)</td><td class="num">{{ (d.CUNEO or 0)|euro }}</td></tr>
+    <tr class="table-light"><td colspan="3" class="small fw-semibold">Dati previdenziali (INPS)</td></tr>
+    <tr><td class="code">—</td><td>Imponibile previdenziale</td><td class="num">{{ (d.IMP_PREV or 0)|euro }}</td></tr>
+    <tr><td class="code">—</td><td>Contributi a carico del lavoratore trattenuti</td><td class="num">{{ (d.INPS or 0)|euro }}</td></tr>
+    <tr><td class="code">—</td><td>Indennità di malattia INPS anticipata in busta</td><td class="num">{{ (d.MAL_INPS or 0)|euro }}</td></tr>
+    {% if d.TFR %}<tr class="table-light"><td colspan="3" class="small fw-semibold">Trattamento di fine rapporto (tassazione separata)</td></tr>
+    <tr><td class="code">801</td><td>TFR erogato</td><td class="num">{{ d.TFR|euro }}</td></tr>
+    <tr><td class="code">809</td><td>Ritenute sul TFR</td><td class="num">{{ (d.RIT_TFR or 0)|euro }}</td></tr>
+    <tr><td class="code">—</td><td>Imposta sostitutiva sulla rivalutazione</td><td class="num">{{ (d.SOST_TFR or 0)|euro }}</td></tr>{% endif %}
+  </table>
+  <p class="small text-muted mt-2 mb-0">{% if d.mesi_prec %}Comprende {{ d.mesi_prec|int }} mesi di progressivi del gestionale precedente (gennaio–agosto). {% endif %}Le addizionali dei mesi precedenti sono comprese solo nel totale dei progressivi ({{ (d.ADD or 0)|euro }}).
+  Numeri dei punti indicativi: la CU si trasmette all'Agenzia delle Entrate entro il 16 marzo e si consegna al dipendente.</p>
+</div>
+{% endif %}
+<h6 class="fw-bold">Riepilogo {{ anno }}</h6>
+<div class="o-list table-responsive"><table class="table table-sm table-hover">
+  <thead><tr><th>Dipendente</th><th class="num">Redditi (punto 1)</th><th class="num">IRPEF (21)</th><th class="num">Contributi INPS</th><th class="num">TFR erogato</th></tr></thead>
+  <tbody>{% for x, dd in riepilogo %}<tr class="click" data-href="?anno={{ anno }}&employee_id={{ x.id }}"><td>{{ x.name }}{% if not x.active %} <span class="badge text-bg-secondary">cessato</span>{% endif %}</td>
+    <td class="num">{{ (dd.IMP_FISC or 0)|euro }}</td><td class="num">{{ (dd.IRPEF or 0)|euro }}</td><td class="num">{{ (dd.INPS or 0)|euro }}</td><td class="num">{{ (dd.TFR or 0)|euro }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

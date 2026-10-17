@@ -13,57 +13,67 @@
 {% if current_user.is_authenticated %}
 <nav class="navbar navbar-expand-lg navbar-dark mp-nav">
   <div class="container-fluid">
-    <a class="navbar-brand fw-semibold" href="{{ url_for('main.dashboard') }}"><i class="bi bi-cash-coin"></i> MasterPayroll <span class="text-warning">Academy</span></a>
+    <a class="navbar-brand fw-semibold" href="{{ url_for('cruscotto.dashboard') }}"><i class="bi bi-cash-coin"></i> MasterPayroll <span class="text-warning">Academy</span></a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav me-auto">
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Libro paga</a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('main.payslips') }}">Buste paga dipendente</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.runs') }}">Gruppi buste paga</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('buste_paga.payslips') }}">Buste paga dipendente</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('gruppi.runs') }}">Gruppi buste paga</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><h6 class="dropdown-header">Analisi</h6></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.payslip_lines') }}">Righe busta paga</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.f24') }}">Versamenti F24 <span class="o-model">l10n_it</span></a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.outbox') }}">Posta in uscita</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('buste_paga.payslip_lines') }}">Righe busta paga</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('f24.f24') }}">Versamenti F24 <span class="o-model">l10n_it</span></a></li>
+            <li><a class="dropdown-item" href="{{ url_for('posta.outbox') }}">Posta in uscita</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header">Adempimenti</h6></li>
+            <li><a class="dropdown-item" href="{{ url_for('lul.libro') }}">Libro unico del lavoro</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('contabilita.prima_nota_paghe') }}">Contabilizzazione paghe</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('cu.certificazione') }}">Certificazione Unica</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Dipendenti</a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('main.employees') }}">Dipendenti</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.contracts') }}">Contratti</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.calendars') }}">Orari di lavoro</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('dipendenti.employees') }}">Dipendenti</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('contratti.contracts') }}">Contratti</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('orari.calendars') }}">Orari di lavoro</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('cessazioni.elenco') }}">Cessazioni e TFR</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Assenze</a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('main.leaves') }}">Assenze</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.leave_types') }}">Tipi di assenza</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.holidays') }}">Festività</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('assenze.leaves') }}">Assenze</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('assenze.leave_types') }}">Tipi di assenza</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('assenze.holidays') }}">Festività</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('ferie_permessi.contatori') }}">Ferie e permessi: maturato e residuo</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Configurazione</a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('main.settings') }}">Impostazioni</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('impostazioni.settings') }}">Impostazioni</a></li>
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.structures') }}">Strutture stipendio</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.categories') }}">Categorie regola stipendio</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.rules') }}">Regole stipendio</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.registers') }}">Registri contributi</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('regole.structures') }}">Strutture stipendio</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('regole.categories') }}">Categorie regola stipendio</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('regole.rules') }}">Regole stipendio</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('registri.registers') }}">Registri contributi</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><h6 class="dropdown-header">Localizzazione italiana</h6></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.tabelle') }}">Parametri, IRPEF, livelli CCNL, azienda</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('impostazioni.tabelle') }}">Parametri, IRPEF, livelli CCNL, azienda</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Academy</a>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('main.esercitazioni') }}">Esercitazioni</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.guida') }}">Guida alle regole</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('esercizio.panoramica') }}"><i class="bi bi-signpost-split"></i> Esercizio passo passo</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('cruscotto.esercitazioni') }}">Esercitazioni</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('cruscotto.guida') }}">Guida alle regole</a></li>
           </ul>
         </li>
         {% if current_user.is_docente %}
@@ -73,8 +83,8 @@
       <div class="d-flex align-items-center gap-2 text-white-50 small">
         <span><i class="bi bi-building"></i> {{ ws.name if ws }}</span>
         <span class="d-none d-xl-inline">· <i class="bi bi-person-circle"></i> {{ current_user.display_name }}</span>
-        <a class="btn btn-sm btn-outline-light" href="{{ url_for('auth.cambia_password') }}" title="Cambia password"><i class="bi bi-key"></i></a>
-        <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
+        <a class="btn btn-sm btn-outline-light" href="{{ url_for('accesso.cambia_password') }}" title="Cambia password"><i class="bi bi-key"></i></a>
+        <form method="post" action="{{ url_for('accesso.logout') }}" class="m-0">
           <input type="hidden" name="_csrf" value="{{ csrf_token }}">
           <button class="btn btn-sm btn-outline-light" title="Esci"><i class="bi bi-box-arrow-right"></i></button>
         </form>
@@ -102,6 +112,7 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
+{% if guida %}{% include "esercizio/_pannello.html" %}{% endif %}
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
 <script>
 document.querySelectorAll('tr.click[data-href]').forEach(function (tr) {

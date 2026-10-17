@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, cp, badge %}
+{% block title %}Assenze{% endblock %}
+{% block controlpanel %}{% call cp([("Assenze", None)], "hr.leave") %}<a href="{{ url_for('assenze.leave') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuovo</a>{% endcall %}{% endblock %}
+{% block content %}
+{% set labels = {'draft':'Bozza','confirm':'Da approvare','validate':'Approvata','refuse':'Rifiutata'} %}
+<form class="o-filters d-flex gap-2 align-items-center mb-2">
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-secondary {{ 'active' if not stato }}" href="{{ url_for('assenze.leaves', employee_id=emp_id) }}">Tutte</a>
+    {% for k in ['confirm','validate','refuse'] %}<a class="btn btn-outline-secondary {{ 'active' if stato == k }}" href="{{ url_for('assenze.leaves', state=k, employee_id=emp_id) }}">{{ labels[k] }}</a>{% endfor %}
+  </div>
+  <select name="employee_id" class="form-select form-select-sm" style="max-width:220px" onchange="this.form.submit()"><option value="">Tutti i dipendenti</option>{% for e in employees %}<option value="{{ e.id }}" {{ 'selected' if e.id == emp_id }}>{{ e.name }}</option>{% endfor %}</select>
+  {% if stato %}<input type="hidden" name="state" value="{{ stato }}">{% endif %}
+</form>
+<div class="o-list table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Dipendente</th><th>Tipo</th><th>Codice</th><th>Dal</th><th>Al</th><th>Orario</th><th class="num">Giorni</th><th class="num">Ore</th><th>Descrizione</th><th>Stato</th><th></th></tr></thead>
+  <tbody>{% for lv in rows %}
+    <tr class="click" data-href="{{ url_for('assenze.leave', leave_id=lv.id) }}"><td>{{ lv.employee.name }}</td><td><span class="badge" style="background:{{ lv.holiday_status.color }}">{{ lv.holiday_status.name }}</span></td><td class="code">{{ lv.holiday_status.code }}</td>
+      <td>{{ lv.date_from|data }}</td><td>{{ lv.date_to|data }}</td><td class="small">{% if lv.request_unit_hours %}{{ lv.hour_from|num }} - {{ lv.hour_to|num }}{% else %}giorno intero{% endif %}</td>
+      <td class="num">{{ durate[lv.id][0]|num }}</td><td class="num">{{ durate[lv.id][1]|num }}</td><td class="small">{{ lv.name }}</td><td>{{ badge(lv.state, labels) }}</td>
+      <td class="text-nowrap"><form method="post" class="d-inline">{{ csrf() }}<input type="hidden" name="leave_id" value="{{ lv.id }}">
+        {% if lv.state != 'validate' %}<button class="btn btn-sm btn-outline-success py-0" name="action" value="validate">Approva</button>{% endif %}
+        {% if lv.state != 'refuse' %}<button class="btn btn-sm btn-outline-secondary py-0" name="action" value="refuse">Rifiuta</button>{% endif %}
+        <button class="btn btn-sm btn-link text-danger py-0" name="action" value="delete" data-confirm="Eliminare l'assenza?"><i class="bi bi-trash"></i></button></form></td></tr>
+  {% else %}<tr><td colspan="11" class="text-muted p-3">Nessuna assenza.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="small text-muted mt-2">Solo le assenze <strong>approvate</strong> entrano nei giorni lavorati della busta paga, con il codice del tipo di assenza (es. <code>worked_days.PNR</code>).</p>
+{% endblock %}
