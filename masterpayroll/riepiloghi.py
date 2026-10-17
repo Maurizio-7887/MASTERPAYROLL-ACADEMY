@@ -2,7 +2,7 @@
 from collections import defaultdict
 from datetime import date
 
-from .hr_service import attendance_intervals, daterange, list_leaves
+from .hr_service import attendance_intervals, calendari_periodo, daterange, list_leaves
 from .models import Employee, Payslip, ProgressivoAnnuo, month_bounds
 
 
@@ -98,9 +98,9 @@ SIGLE = {"FERIE": "FE", "ROL": "PR", "MAL": "MA", "INF": "IN", "PNR": "PN", "CON
 
 def presenze_mese(employee, anno, mese):
     d1, d2 = month_bounds(date(anno, mese, 1))
-    cal = employee.resource_calendar
+    cal = calendari_periodo(employee, d1, d2)  # l'orario del giorno: segue lo storico degli orari
     contratti = [c for c in employee.contract_ids if c.state in ("open", "close") and c.is_overlapping_period(d1, d2)]
-    if not cal or not contratti:
+    if not contratti:
         return []
     inizio = min(c.date_start for c in contratti)
     fine = max((c.date_end or d2) for c in contratti)
@@ -109,7 +109,7 @@ def presenze_mese(employee, anno, mese):
         assenze[d].append((ore, tipo))
     giorni = []
     for d in daterange(d1, d2):
-        h_day = sum(t - f for f, t in attendance_intervals(cal, d))
+        h_day = sum(t - f for f, t in attendance_intervals(cal(d), d))
         if d < inizio or d > fine:
             giorni.append((d, "", 0))
         elif h_day <= 0:

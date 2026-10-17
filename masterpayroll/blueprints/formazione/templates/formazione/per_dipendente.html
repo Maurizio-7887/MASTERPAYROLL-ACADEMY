@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp %}
+{% block title %}Formazione per dipendente{% endblock %}
+{% block controlpanel %}{{ cp([("Corsi di formazione", url_for('formazione.corsi')), ("Formazione per dipendente", None)]) }}{% endblock %}
+{% block content %}
+<div class="o-list table-responsive"><table class="table table-sm">
+  <thead><tr><th>Dipendente</th><th>Corso</th><th>Categoria</th><th>Data</th><th class="num">Ore</th><th>Esito</th><th>Scadenza</th></tr></thead>
+  <tbody>{% for e in emps %}{% set lista = per[e.id] %}
+    {% for p in lista %}<tr class="click" data-href="{{ url_for('formazione.corso', corso_id=p.corso_id) }}">{% if loop.first %}<td rowspan="{{ lista|length }}" class="fw-semibold">{{ e.name }}<br><span class="small text-muted">{{ e.job_title }}</span></td>{% endif %}
+      <td class="small">{{ p.corso.titolo }}</td><td class="small">{{ categorie.get(p.corso.categoria, p.corso.categoria) }}</td><td class="small">{{ p.corso.data_inizio|data }}</td><td class="num">{{ p.corso.ore|num }}</td><td class="small">{{ esiti.get(p.esito, p.esito) }}</td><td class="small">{{ p.scadenza|data if p.scadenza else '—' }}</td></tr>
+    {% else %}<tr><td class="fw-semibold">{{ e.name }}</td><td colspan="6" class="text-muted small">Nessun corso registrato.</td></tr>{% endfor %}
+  {% endfor %}</tbody>
+</table></div>
+{% endblock %}

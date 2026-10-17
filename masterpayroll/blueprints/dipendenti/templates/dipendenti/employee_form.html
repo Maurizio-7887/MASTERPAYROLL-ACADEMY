@@ -15,6 +15,9 @@
     <a class="o-smart" href="{{ url_for('buste_paga.payslips', employee_id=e.id) }}"><i class="bi bi-receipt"></i><span><b>{{ e.payslip_count }}</b> Buste paga</span></a>
     <a class="o-smart" href="{{ url_for('contratti.contracts') }}"><i class="bi bi-file-earmark-text"></i><span><b>{{ e.contract_ids|length }}</b> Contratti</span></a>
     <a class="o-smart" href="{{ url_for('assenze.leaves', employee_id=e.id) }}"><i class="bi bi-calendar-x"></i><span><b>{{ e.leave_ids|length }}</b> Assenze</span></a>
+    <a class="o-smart" href="{{ url_for('visite_mediche.elenco', employee_id=e.id) }}"><i class="bi bi-heart-pulse"></i><span><b>{{ hr.visite }}</b> Visite</span></a>
+    <a class="o-smart" href="{{ url_for('formazione.per_dipendente') }}"><i class="bi bi-mortarboard"></i><span><b>{{ hr.corsi }}</b> Corsi</span></a>
+    <a class="o-smart" href="{{ url_for('documenti.elenco', employee_id=e.id) }}"><i class="bi bi-folder2-open"></i><span><b>{{ hr.documenti }}</b> Documenti</span></a>
   </div>{% endif %}
   <div class="row">
     <div class="col-md-3"><label class="small text-muted">Matricola</label><input name="registration_number" value="{{ e.registration_number if e else nuova_matricola }}" class="form-control form-control-sm"></div>
@@ -37,6 +40,9 @@
   <div class="tab-content">
     <div class="tab-pane fade {{ 'show active' if tab == 'work' }}" id="t-work"><div class="row"><div class="col-lg-6">
       {% call row("Orario di lavoro", "Usato per i giorni lavorati se il contratto non ne indica uno") %}<select name="resource_calendar_id" class="form-select form-select-sm"><option value=""></option>{% for c in calendars %}<option value="{{ c.id }}" {{ 'selected' if e and e.resource_calendar_id == c.id }}>{{ c.name }}</option>{% endfor %}</select>{% endcall %}
+    </div><div class="col-lg-6">
+      {% if hr.storico %}<div class="small fw-semibold mb-1">Storico degli orari <a class="fw-normal" href="{{ url_for('variazioni.elenco', employee_id=e.id) }}">(variazioni)</a></div>
+      <table class="table table-sm small mb-0"><tbody>{% for r in hr.storico %}<tr><td>{{ r.date_start|data }} – {{ r.date_end|data if r.date_end else 'oggi' }}</td><td>{{ r.calendar.name if r.calendar }}</td></tr>{% endfor %}</tbody></table>{% endif %}
     </div></div></div>
     <div class="tab-pane fade {{ 'show active' if tab == 'private' }}" id="t-private"><div class="row"><div class="col-lg-6">
       {% call row("Codice fiscale") %}<input name="identification_id" maxlength="16" value="{{ e.identification_id if e }}" class="form-control form-control-sm text-uppercase">{% endcall %}

@@ -740,6 +740,108 @@ class EsercizioSpunta(db.Model):
     created_at = db.Column(db.DateTime, default=now)
 
 
+# ===========================================================================
+# moduli HR aggiuntivi (OCA hr-19.0): storico orari, visite mediche, corsi, documenti
+# ===========================================================================
+class EmployeeCalendar(db.Model):
+    """Storico degli orari di lavoro del dipendente (hr_employee_calendar_planning): quale orario vale e da quando.
+    Le variazioni di orario a metà mese (trasformazione part-time/tempo pieno) cambiano i giorni lavorati."""
+    __tablename__ = "employee_calendars"
+    _odoo = "hr.employee.calendar"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    calendar_id = db.Column(db.Integer, db.ForeignKey("resource_calendars.id"))
+    date_start = db.Column(db.Date)
+    date_end = db.Column(db.Date)
+    motivo = db.Column(db.String(200), default="")
+    employee = db.relationship("Employee")
+    calendar = db.relationship("ResourceCalendar")
+
+
+class VisitaMedica(db.Model):
+    """Sorveglianza sanitaria (D.Lgs. 81/08 art. 41) — hr_employee_medical_examination."""
+    __tablename__ = "visite_mediche"
+    _odoo = "hr.employee.medical.examination"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    data = db.Column(db.Date, nullable=False)
+    tipo = db.Column(db.String(30), default="periodica")
+    esito = db.Column(db.String(30), default="idoneo")
+    prescrizioni = db.Column(db.String(300), default="")
+    medico = db.Column(db.String(120), default="")
+    scadenza = db.Column(db.Date)
+    note = db.Column(db.Text, default="")
+    employee = db.relationship("Employee")
+
+
+class Corso(db.Model):
+    """Corso di formazione (hr_course): sicurezza, antincendio, primo soccorso, abilitazioni, tecnici."""
+    __tablename__ = "corsi"
+    _odoo = "hr.course.schedule"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    titolo = db.Column(db.String(200), nullable=False)
+    categoria = db.Column(db.String(30), default="sicurezza_specifica")
+    ente = db.Column(db.String(160), default="")
+    data_inizio = db.Column(db.Date)
+    data_fine = db.Column(db.Date)
+    ore = db.Column(db.Float, default=0.0)
+    costo = db.Column(db.Float, default=0.0)
+    validita_anni = db.Column(db.Integer, default=0)  # 0 = non scade
+    stato = db.Column(db.String(20), default="programmato")  # programmato | svolto | annullato
+    note = db.Column(db.Text, default="")
+    partecipanti = db.relationship("CorsoPartecipante", back_populates="corso", cascade="all, delete-orphan",
+                                   order_by="CorsoPartecipante.id")
+
+    @property
+    def costo_per_partecipante(self):
+        n = len(self.partecipanti)
+        return round(self.costo / n, 2) if n else 0.0
+
+
+class CorsoPartecipante(db.Model):
+    __tablename__ = "corsi_partecipanti"
+    _odoo = "hr.course.attendee"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    corso_id = db.Column(db.Integer, db.ForeignKey("corsi.id", ondelete="CASCADE"), index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    esito = db.Column(db.String(20), default="iscritto")  # iscritto | superato | non_superato | assente
+    corso = db.relationship("Corso", back_populates="partecipanti")
+    employee = db.relationship("Employee")
+
+    @property
+    def scadenza(self):
+        c = self.corso
+        if self.esito != "superato" or not c.validita_anni or not c.data_fine:
+            return None
+        try:
+            return c.data_fine.replace(year=c.data_fine.year + c.validita_anni)
+        except ValueError:  # 29 febbraio
+            return c.data_fine.replace(year=c.data_fine.year + c.validita_anni, day=28)
+
+
+class DocumentoDipendente(db.Model):
+    """Documenti del dipendente (hr_employee_document): contratto firmato, idoneità, attestati, documenti."""
+    __tablename__ = "documenti_dipendente"
+    _odoo = "hr.employee.document"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    tipo = db.Column(db.String(30), default="altro")
+    nome = db.Column(db.String(200), nullable=False)
+    filename = db.Column(db.String(200), default="")
+    mimetype = db.Column(db.String(100), default="application/octet-stream")
+    contenuto = db.Column(db.LargeBinary)
+    dimensione = db.Column(db.Integer, default=0)
+    scadenza = db.Column(db.Date)
+    note = db.Column(db.String(300), default="")
+    created_at = db.Column(db.DateTime, default=now)
+    employee = db.relationship("Employee")
+
+
 def month_bounds(d):
     first = d.replace(day=1)
     nxt = (first + timedelta(days=32)).replace(day=1)
@@ -747,7 +849,7 @@ def month_bounds(d):
 
 
 # Tutti i modelli legati a un ambiente, nell'ordine in cui cancellarli.
-WORKSPACE_MODELS = [EsercizioSpunta, Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
+WORKSPACE_MODELS = [DocumentoDipendente, CorsoPartecipante, Corso, VisitaMedica, EmployeeCalendar, EsercizioSpunta,Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
                     Leave, Familiare, Contract, Employee, RuleInput, SalaryRule, PayrollStructure,
                     SalaryRuleCategory, ContributionRegister, Partner, ResourceCalendarLeave,
                     ResourceCalendarAttendance, ResourceCalendar, LeaveType, Livello, Parametro,

@@ -40,6 +40,12 @@
             <li><a class="dropdown-item" href="{{ url_for('dipendenti.employees') }}">Dipendenti</a></li>
             <li><a class="dropdown-item" href="{{ url_for('contratti.contracts') }}">Contratti</a></li>
             <li><a class="dropdown-item" href="{{ url_for('orari.calendars') }}">Orari di lavoro</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('variazioni.elenco') }}">Variazioni di orario e part-time <span class="o-model">hr_employee_calendar_planning</span></a></li>
+            <li><a class="dropdown-item" href="{{ url_for('documenti.elenco') }}">Documenti dei dipendenti <span class="o-model">hr_employee_document</span></a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('visite_mediche.elenco') }}">Visite mediche <span class="o-model">hr_employee_medical_examination</span></a></li>
+            <li><a class="dropdown-item" href="{{ url_for('formazione.corsi') }}">Corsi di formazione <span class="o-model">hr_course</span></a></li>
+            <li><a class="dropdown-item" href="{{ url_for('visite_mediche.scadenzario_hr') }}">Scadenzario del personale</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('cessazioni.elenco') }}">Cessazioni e TFR</a></li>
           </ul>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, csrf, row %}
+{% block title %}{{ c.titolo }}{% endblock %}
+{% block controlpanel %}{{ cp([("Corsi di formazione", url_for('formazione.corsi')), (c.titolo, None)], "hr.course.schedule") }}{% endblock %}
+{% block content %}
+<form method="post">{{ csrf() }}
+{% if not ws_altrui %}<div class="o-form-header"><div class="d-flex gap-1"><button class="btn btn-sm btn-primary" name="action" value="save">Salva</button>
+  <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="Eliminare il corso con i suoi partecipanti?"><i class="bi bi-trash"></i></button></div></div>{% endif %}
+<div class="o-sheet">
+  <input name="titolo" value="{{ c.titolo }}" class="form-control mb-2" style="font-weight:600">
+  <div class="row"><div class="col-lg-6">
+    {% call row("Categoria") %}<select name="categoria" class="form-select form-select-sm">{% for k, l in categorie %}<option value="{{ k }}" {{ 'selected' if k == c.categoria }}>{{ l }}</option>{% endfor %}</select>{% endcall %}
+    {% call row("Ente / docente") %}<input name="ente" value="{{ c.ente }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Dal / al") %}<div class="d-flex gap-1"><input type="date" name="data_inizio" value="{{ c.data_inizio.isoformat() if c.data_inizio }}" class="form-control form-control-sm"><input type="date" name="data_fine" value="{{ c.data_fine.isoformat() if c.data_fine }}" class="form-control form-control-sm"></div>{% endcall %}
+    {% call row("Stato") %}<select name="stato" class="form-select form-select-sm">{% for k, l in stati %}<option value="{{ k }}" {{ 'selected' if k == c.stato }}>{{ l }}</option>{% endfor %}</select>{% endcall %}
+  </div><div class="col-lg-6">
+    {% call row("Ore") %}<input name="ore" value="{{ c.ore|num }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Costo totale €") %}<input name="costo" value="{{ c.costo|num }}" class="form-control form-control-sm">{% endcall %}
+    {% call row("Costo per partecipante") %}<div class="o-ro">€ {{ c.costo_per_partecipante|euro }}</div>{% endcall %}
+    {% call row("Validità (anni)", "0 = non scade") %}<input name="validita_anni" value="{{ c.validita_anni }}" class="form-control form-control-sm">{% endcall %}
+  </div></div>
+  {% call row("Note") %}<textarea name="note" rows="2" class="form-control form-control-sm">{{ c.note }}</textarea>{% endcall %}
+  <h6 class="fw-bold mt-3">Partecipanti</h6>
+  <table class="table table-sm align-middle"><thead><tr><th>Dipendente</th><th>Mansione</th><th>Esito</th><th>Scadenza</th><th></th></tr></thead><tbody>
+  {% for p in c.partecipanti %}<tr><td>{{ p.employee.name }}</td><td class="small">{{ p.employee.job_title }}</td>
+    <td><select name="esito_{{ p.id }}" class="form-select form-select-sm">{% for k, l in esiti %}<option value="{{ k }}" {{ 'selected' if k == p.esito }}>{{ l }}</option>{% endfor %}</select></td>
+    <td>{{ p.scadenza|data if p.scadenza else '—' }}</td>
+    <td>{% if not ws_altrui %}<button class="btn btn-sm btn-link text-danger" name="action" value="del_{{ p.id }}"><i class="bi bi-x-lg"></i></button>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5" class="text-muted small">Nessun partecipante.</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="small text-muted">Per salvare gli esiti premi <strong>Salva</strong>. La scadenza si calcola dalla fine del corso più la validità, solo per chi l'ha superato.</p>
+</div>
+</form>
+{% if not ws_altrui and liberi %}
+<form method="post" class="o-sheet alone mt-3 row g-2 align-items-end">{{ csrf() }}<input type="hidden" name="action" value="add">
+  <div class="col-md-5"><label class="form-label small fw-semibold">Aggiungi partecipante</label><select name="employee_id" class="form-select form-select-sm">{% for e in liberi %}<option value="{{ e.id }}">{{ e.name }} · {{ e.job_title }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label small fw-semibold">Esito</label><select name="esito" class="form-select form-select-sm">{% for k, l in esiti %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-person-plus"></i> Aggiungi</button></div>
+</form>
+{% endif %}
+{% endblock %}

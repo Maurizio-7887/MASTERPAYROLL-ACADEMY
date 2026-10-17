@@ -112,10 +112,36 @@ def test_esercizio_ottobre_dicembre(docente, app):
     from masterpayroll.hr_service import contatori_ferie
     c = contatori_ferie(_emp(ws, "0001"), 2026, date(2026, 10, 31))
     assert c["ferie_godute"] == 16 and c["rol_goduti"] == 4 and c["ferie_maturate"] == round(160 * 10 / 12, 2)
+    # visita medica periodica di Bianchi
+    assert docente.post("/visite-mediche", data={"employee_id": _emp(ws, "0001").id, "data": "2026-10-20", "tipo": "periodica",
+                                                 "esito": "idoneo", "scadenza": "2027-10-20", "medico": "Dott.ssa Rinaldi"}).status_code == 302
+    assert _stati(ws)["visita-bianchi"] == "auto"
+    # trasformazione di Ferri a tempo pieno dal 16 novembre (prima di generare novembre)
+    from masterpayroll.models import Contract, ResourceCalendar
+    full = ResourceCalendar.query.filter(ResourceCalendar.workspace_id == ws.id, ResourceCalendar.name.like("Tempo pieno%")).one()
+    fer = _emp(ws, "0005")
+    assert docente.post("/variazioni", data={"employee_id": fer.id, "dal": "2026-11-16", "calendar_id": full.id,
+                                             "part_time": "100", "motivo": "trasformazione a tempo pieno"}).status_code == 302
+    assert _stati(ws)["trasf-ferri"] == "auto"
+    vers = sorted(fer.contract_ids, key=lambda c: c.date_start)
+    assert vers[-1].part_time == 100 and vers[-2].date_end == date(2026, 11, 15) and vers[-2].state == "close"
     # novembre e cessazione di Esposito
     nov = gruppo("Novembre 2026", "2026-11-01", "2026-11-30")
     genera(nov)
     assert _stati(ws)["gruppo-nov"] == "auto"
+    sf = _slip(db.session.get(PayslipRun, nov), "0005")
+    assert len([w for w in sf.worked_days_line_ids if w.code == "WORK100"]) == 2
+    assert sf.get_salary_line_total("BASIC") == round(2110 * 0.75, 2)
+    assert sf.contract_id == vers[-1].id
+    cf = contatori_ferie(fer, 2026, date(2026, 11, 30))
+    assert cf["ferie_maturate"] == round(80 * 10 / 12 + 120 / 12, 2)
+    # corso carrelli elevatori di Moretti
+    r = docente.post("/formazione", data={"titolo": "Abilitazione all'uso dei carrelli elevatori (12 ore)", "categoria": "abilitazione",
+                                          "ente": "Ente bilaterale", "data_inizio": "2026-11-09", "data_fine": "2026-11-10",
+                                          "ore": "12", "costo": "240", "validita_anni": "5", "stato": "svolto"})
+    corso_url = r.headers["Location"]
+    docente.post(corso_url, data={"action": "add", "employee_id": _emp(ws, "0008").id, "esito": "superato"})
+    assert _stati(ws)["corso-moretti"] == "auto"
     esp = _emp(ws, "0004")
     r = docente.post("/cessazioni", data={"employee_id": esp.id, "data": "2026-11-30", "motivo": "dimissioni"})
     assert Cessazione.query.filter_by(workspace_id=ws.id).count() == 0   # prima va confermata la busta di novembre
@@ -148,7 +174,7 @@ def test_esercizio_ottobre_dicembre(docente, app):
     run = db.session.get(PayslipRun, dic)
     mor = _slip(run, "0008")
     assert mor.get_salary_line_total("CONG_IRPEF") < 0 and mor.get_salary_line_total("CONG_CUNEO") > 0
-    assert all(abs(_slip(run, m).get_salary_line_total("CONG_IRPEF")) < 100 for m in ("0002", "0005", "0006", "0007"))
+    assert all(abs(_slip(run, m).get_salary_line_total("CONG_IRPEF")) < 100 for m in ("0002", "0006", "0007"))
     conferma_e_chiudi(dic)
     docente.post("/contabilita", data={"anno": 2026, "mese": 12})
     assert "· quadra" in docente.get("/contabilita?anno=2026&mese=12").get_data(as_text=True)
@@ -160,7 +186,12 @@ def test_esercizio_ottobre_dicembre(docente, app):
         if p["check"] is not None:
             assert s == "auto", pid
     # pagine nuove raggiungibili, finestra con il conteggio, area docente con il progresso
-    for url in ("/esercizio", "/cessazioni", f"/cessazioni/{ces.id}", "/lul", "/cu", "/contabilita", "/ferie-permessi"):
+    sc = docente.get("/scadenzario?al=2026-12-31").get_data(as_text=True)
+    sc = sc[sc.find("<th>Stato</th>"):sc.find("</table>", sc.find("<th>Stato</th>"))]
+    assert "Galli Sara" in sc and "Ferri Anna" in sc and "Esposito" not in sc
+    for url in ("/esercizio", "/cessazioni", f"/cessazioni/{ces.id}", "/lul", "/cu", "/contabilita", "/ferie-permessi",
+                "/variazioni", "/visite-mediche", "/formazione", "/formazione/dipendenti", "/documenti", "/scadenzario",
+                f"/employees/{fer.id}", corso_url, "/"):
         assert docente.get(url).status_code == 200, url
     assert "Guida" in docente.get("/docente/").get_data(as_text=True)
 
@@ -176,9 +207,18 @@ def test_ambiente_vecchio_si_aggiorna(app):
         db.session.delete(r)
     net = SalaryRule.query.filter_by(workspace_id=ws.id, code="NET").one()
     net.amount_python_compute = FORMULE_PRECEDENTI["NET"][0]
-    Parametro.query.filter_by(workspace_id=ws.id, codice="TFR_SOSTITUTIVA").delete()
+    basic = SalaryRule.query.filter_by(workspace_id=ws.id, code="BASIC").one()
+    basic.amount_python_compute = FORMULE_PRECEDENTI["BASIC"][0]
+    from masterpayroll.models import EmployeeCalendar, VisitaMedica
+    EmployeeCalendar.query.filter_by(workspace_id=ws.id).delete()
+    VisitaMedica.query.filter_by(workspace_id=ws.id).delete()
+    Parametro.query.filter(Parametro.workspace_id == ws.id,
+                           Parametro.codice.in_(("TFR_SOSTITUTIVA", "SCADENZE_PREAVVISO_GG"))).delete()
     db.session.commit()
     ws = _ws()   # ensure_workspace vede l'ambiente vecchio e lo aggiorna
     assert SalaryRule.query.filter_by(workspace_id=ws.id, code="CONG_IRPEF").count() == 1
     assert SalaryRule.query.filter_by(workspace_id=ws.id, code="NET").one().amount_python_compute == FORMULE_PRECEDENTI["NET"][1]
+    assert SalaryRule.query.filter_by(workspace_id=ws.id, code="BASIC").one().amount_python_compute == FORMULE_PRECEDENTI["BASIC"][1]
+    assert EmployeeCalendar.query.filter_by(workspace_id=ws.id).count() == 8
+    assert VisitaMedica.query.filter_by(workspace_id=ws.id).count() == 7
     assert Payslip.query.filter_by(workspace_id=ws.id).count() == 8

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, csrf %}
+{% block title %}Corsi di formazione{% endblock %}
+{% block controlpanel %}{% call cp([("Corsi di formazione", None)], "hr.course") %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('formazione.per_dipendente') }}"><i class="bi bi-person-lines-fill"></i> Formazione per dipendente</a>{% endcall %}{% endblock %}
+{% block content %}
+{% if not ws_altrui %}
+<div class="o-sheet alone mb-3">
+  <h5 class="page-title mb-2"><i class="bi bi-mortarboard"></i> Nuovo corso</h5>
+  <form method="post" class="row g-2 align-items-end">{{ csrf() }}
+    <div class="col-md-5"><label class="form-label small fw-semibold">Titolo</label><input name="titolo" class="form-control form-control-sm" required></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Categoria</label><select name="categoria" class="form-select form-select-sm">{% for k, l in categorie %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label small fw-semibold">Ente / docente</label><input name="ente" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Dal</label><input type="date" name="data_inizio" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Al</label><input type="date" name="data_fine" class="form-control form-control-sm"></div>
+    <div class="col-md-1"><label class="form-label small fw-semibold">Ore</label><input name="ore" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Costo totale €</label><input name="costo" class="form-control form-control-sm"></div>
+    <div class="col-md-1"><label class="form-label small fw-semibold" title="0 = non scade">Validità anni</label><input name="validita_anni" value="0" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Stato</label><select name="stato" class="form-select form-select-sm">{% for k, l in stati %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus"></i> Crea</button></div>
+  </form>
+  <p class="small text-muted mt-2 mb-0">La formazione obbligatoria sulla sicurezza (Accordo Stato-Regioni) si fa in orario di lavoro ed è a carico dell'azienda:
+  le ore sono retribuite normalmente in busta. Aggiornamento ogni 5 anni; antincendio 5 anni; primo soccorso 3 anni.</p>
+</div>
+{% endif %}
+{% if anni %}<div class="d-flex flex-wrap gap-2 mb-3">{% for a, t in anni %}<div class="card kpi p-2 px-3"><div class="lbl">{{ a }}</div><div class="small"><b>{{ t.corsi }}</b> corsi · <b>{{ t.ore_persona|num }}</b> ore-persona · € <b>{{ t.costo|euro }}</b></div></div>{% endfor %}</div>{% endif %}
+<div class="o-list table-responsive"><table class="table table-sm table-hover">
+  <thead><tr><th>Corso</th><th>Categoria</th><th>Date</th><th class="num">Ore</th><th class="num">Partecipanti</th><th class="num">Costo €</th><th>Validità</th><th>Stato</th></tr></thead>
+  <tbody>{% for c in righe %}<tr class="click" data-href="{{ url_for('formazione.corso', corso_id=c.id) }}"><td>{{ c.titolo }}<br><span class="small text-muted">{{ c.ente }}</span></td><td class="small">{{ dict(categorie).get(c.categoria, c.categoria) }}</td>
+    <td class="small">{{ c.data_inizio|data }}{% if c.data_fine and c.data_fine != c.data_inizio %} – {{ c.data_fine|data }}{% endif %}</td><td class="num">{{ c.ore|num }}</td><td class="num">{{ c.partecipanti|length }}</td><td class="num">{{ c.costo|euro }}</td>
+    <td class="small">{{ (c.validita_anni ~ ' anni') if c.validita_anni else 'non scade' }}</td><td>{{ dict(stati).get(c.stato, c.stato) }}</td></tr>
+  {% else %}<tr><td colspan="8" class="text-muted">Nessun corso.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -4,7 +4,8 @@ Una cartella per attività: le pagine HTML sono in templates/dipendenti/."""
 from datetime import date
 from flask import flash, g, redirect, render_template, request, url_for
 from ... import payroll
-from ...models import (Employee, Familiare, ResourceCalendar, db)
+from ...models import (CorsoPartecipante, DocumentoDipendente, Employee, EmployeeCalendar, Familiare, ResourceCalendar,
+                       VisitaMedica, db)
 from ..comune import (author, f_bool, f_date, f_float, f_id, f_str, handle_user_error, messages_for, post_note,
                      ws_get, ws_query)
 
@@ -101,6 +102,12 @@ def employee(emp_id=None):
         return redirect(url_for("dipendenti.employee", emp_id=e.id, tab=request.form.get("tab", "")))
     nxt = 1 + max([int(x.registration_number) for x in ws_query(Employee) if (x.registration_number or "").isdigit()]
                   or [0])
-    return render_template("dipendenti/employee_form.html", e=e, calendars=_calendars(), qualifiche=QUALIFICHE,
+    hr = {}
+    if e:
+        hr = {"visite": VisitaMedica.query.filter_by(employee_id=e.id).count(),
+              "corsi": CorsoPartecipante.query.filter_by(employee_id=e.id).count(),
+              "documenti": DocumentoDipendente.query.filter_by(employee_id=e.id).count(),
+              "storico": EmployeeCalendar.query.filter_by(employee_id=e.id).order_by(EmployeeCalendar.date_start).all()}
+    return render_template("dipendenti/employee_form.html", e=e, calendars=_calendars(), qualifiche=QUALIFICHE, hr=hr,
                            nuova_matricola=f"{nxt:04d}", tab=request.args.get("tab") or "work",
                            messages=messages_for("hr.employee", e.id) if e else [], oggi=date.today())

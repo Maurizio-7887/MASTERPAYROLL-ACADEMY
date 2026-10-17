@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, csrf %}
+{% block title %}Variazioni di orario{% endblock %}
+{% block controlpanel %}{{ cp([("Variazioni di orario e part-time", None)], "hr.employee.calendar") }}{% endblock %}
+{% block content %}
+{% if not ws_altrui %}
+<div class="o-sheet alone mb-3">
+  <h5 class="page-title mb-2"><i class="bi bi-clock-history"></i> Nuova variazione</h5>
+  <form method="post" class="row g-2 align-items-end">{{ csrf() }}
+    <div class="col-md-3"><label class="form-label small fw-semibold">Dipendente</label>
+      <select name="employee_id" class="form-select form-select-sm" required><option value=""></option>{% for e in attivi %}<option value="{{ e.id }}" {{ 'selected' if e.id == emp_id }}>{{ e.name }}{% if attuale[e.id] %} · ora {{ attuale[e.id].part_time|num }}%{% endif %}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Dal giorno</label><input type="date" name="dal" class="form-control form-control-sm" required></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Nuovo orario di lavoro</label>
+      <select name="calendar_id" class="form-select form-select-sm" required><option value=""></option>{% for c in calendari %}<option value="{{ c.id }}">{{ c.name }} · {{ c.hours_per_week|num }} h/sett.</option>{% endfor %}</select></div>
+    <div class="col-md-1"><label class="form-label small fw-semibold">% part-time</label><input name="part_time" class="form-control form-control-sm" placeholder="100"></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Motivo</label><input name="motivo" class="form-control form-control-sm" placeholder="es. trasformazione a tempo pieno"></div>
+    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Registra la variazione</button></div>
+  </form>
+  <p class="small text-muted mt-2 mb-0">Se cambia la <strong>percentuale di part-time</strong> il contratto in corso si chiude il giorno prima e nasce una nuova versione
+  (come <em>hr.version</em> in Odoo 19). Nel mese della variazione la busta mostra due righe di giorni lavorati e la paga è pesata sui giorni:
+  15 giorni al 50% e 15 al 100% fanno il 75%. Se cambia solo l'orario si aggiunge una riga allo storico.</p>
+</div>
+{% endif %}
+<div class="d-flex justify-content-between align-items-center"><h6 class="fw-bold mb-2">Storico degli orari</h6>
+  <form method="get" class="d-flex gap-2"><select name="employee_id" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Tutti i dipendenti</option>{% for e in attivi %}<option value="{{ e.id }}" {{ 'selected' if e.id == emp_id }}>{{ e.name }}</option>{% endfor %}</select></form></div>
+<div class="o-list table-responsive"><table class="table table-sm">
+  <thead><tr><th>Dipendente</th><th>Dal</th><th>Al</th><th>Orario</th><th class="num">Ore/sett.</th><th>Motivo</th></tr></thead>
+  <tbody>{% for r in righe %}<tr><td>{{ r.employee.name }}</td><td>{{ r.date_start|data }}</td><td>{{ r.date_end|data if r.date_end else '—' }}</td><td>{{ r.calendar.name if r.calendar }}</td><td class="num">{{ r.calendar.hours_per_week|num if r.calendar }}</td><td class="small">{{ r.motivo }}</td></tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Nessuna riga nello storico.</td></tr>{% endfor %}</tbody>
+</table></div>
+<h6 class="fw-bold mt-4">Trasformazioni del contratto (versioni)</h6>
+<div class="o-list table-responsive"><table class="table table-sm table-hover">
+  <thead><tr><th>Dipendente</th><th>Versione precedente</th><th class="num">% prima</th><th>Dal</th><th>Nuova versione</th><th class="num">% dopo</th><th class="num">Retribuzione mensile dopo</th></tr></thead>
+  <tbody>{% for prima, dopo in versioni %}<tr class="click" data-href="{{ url_for('contratti.contract', con_id=dopo.id) }}"><td>{{ dopo.employee.name }}</td><td class="small">{{ prima.name }}<br><span class="text-muted">{{ prima.date_start|data }} – {{ prima.date_end|data }}</span></td><td class="num">{{ prima.part_time|num }}%</td><td>{{ dopo.date_start|data }}</td><td class="small">{{ dopo.name }}</td><td class="num">{{ dopo.part_time|num }}%</td><td class="num">{{ dopo.retribuzione_mensile|euro }}</td></tr>
+  {% else %}<tr><td colspan="7" class="text-muted">Nessuna trasformazione.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

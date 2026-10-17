@@ -54,8 +54,10 @@ def dashboard():
     stati = {k: ws_query(Payslip).filter_by(state=k).count() for k in ("draft", "verify", "done", "cancel")}
     esercitazioni = Esercitazione.query.filter_by(attiva=True).order_by(Esercitazione.ordine).all()
     svolte = {s.esercitazione_id for s in EsercitazioneSvolta.query.filter_by(user_id=g.ws.owner_id)}
+    from ...scadenze import STATI, scadenzario
+    scadenze = scadenzario(g.ws.id, solo_da_guardare=True)
     return render_template("cruscotto/dashboard.html", n_dip=n_dip, runs=runs, ultimo=ultimo, tot=tot, stati=stati,
-                           esercitazioni=esercitazioni, svolte=svolte)
+                           esercitazioni=esercitazioni, svolte=svolte, scadenze=scadenze, stati_scad=STATI)
 
 
 @bp.route("/ambiente/reset", methods=["POST"])

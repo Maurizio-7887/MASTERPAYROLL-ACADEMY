@@ -29,6 +29,7 @@ PARAMETRI = [
     ("MAL_INPS_PERC2", "Indennità di malattia INPS dal 21° al 180° giorno", 66.67, "%"),
     ("TFR_RIVALUTAZIONE", "Rivalutazione annua del fondo TFR (1,5% + 75% dell'inflazione ISTAT, didattica)", 2.5, "%"),
     ("TFR_SOSTITUTIVA", "Imposta sostitutiva sulla rivalutazione del TFR", 17.0, "%"),
+    ("SCADENZE_PREAVVISO_GG", "Preavviso per visite mediche, corsi e documenti in scadenza", 60.0, "gg"),
 ]
 
 # (codice, nome, padre, nota)
@@ -78,10 +79,25 @@ R = dict  # leggibilità
 NET_CODE = "result = categories.BASIC + categories.ALW + categories.ESENTE + categories.INPS_IND + categories.DED"
 IMP_FISC_CODE = "result = GROSS + categories.PREV + categories.INPS_IND"
 COSTO_CODE = "result = GROSS + categories.ESENTE - categories.TFRC - categories.CRED + categories.COMP"
+# variazioni di orario a metà mese (storico orari): la percentuale del mese e la retribuzione media dei ratei
+BASIC_CODE = "result = arrotonda(contract.wage * payroll.part_time_mese / 100)"
+SUPERMIN_CODE = "result = arrotonda(contract.superminimo * payroll.part_time_mese / 100)"
+SCATTI_CODE = "result_qty = contract.scatti_n\nresult = arrotonda(contract.scatto_importo * payroll.part_time_mese / 100)"
+TREDICESIMA_CODE = ("result_qty = inputs.MESI_13 and inputs.MESI_13.amount or payroll.ratei_13\n"
+                    "result = arrotonda(payroll.retribuzione_13 / 12)")
+RATEI13_CODE = "result_qty = inputs.RATEI_13.amount\nresult = arrotonda(payroll.retribuzione_13 / 12)"
 FORMULE_PRECEDENTI = {
     "NET": ("result = categories.BASIC + categories.ALW + categories.ESENTE + categories.DED", NET_CODE),
     "IMP_FISC": ("result = GROSS + categories.PREV", IMP_FISC_CODE),
     "COSTO": ("result = GROSS + categories.ESENTE - categories.CRED + categories.COMP", COSTO_CODE),
+    "BASIC": ("result = arrotonda(contract.wage * contract.part_time / 100)", BASIC_CODE),
+    "SUPERMIN": ("result = arrotonda(contract.superminimo * contract.part_time / 100)", SUPERMIN_CODE),
+    "SCATTI": ("result_qty = contract.scatti_n\nresult = arrotonda(contract.scatto_importo * contract.part_time / 100)",
+               SCATTI_CODE),
+    "TREDICESIMA": ("result_qty = inputs.MESI_13 and inputs.MESI_13.amount or payroll.ratei_13\n"
+                    "result = arrotonda(contract.retribuzione_mensile / 12)", TREDICESIMA_CODE),
+    "RATEI13": ("result_qty = inputs.RATEI_13.amount\nresult = arrotonda(contract.retribuzione_mensile / 12)",
+                RATEI13_CODE),
 }
 
 CONG_CODE = """imponibile = payroll.cong_imponibile + IMP_FISC
@@ -96,8 +112,9 @@ result = -arrotonda(dovuta - payroll.cong_irpef)"""
 REGOLE = [
     # --- struttura BASE (come 'Base for new structures' di Odoo)
     R(code="BASIC", name="Paga base (minimo tabellare)", sequence=1, category="BASIC", struct=["BASE"],
-      amount_select="code", amount_python_compute="result = arrotonda(contract.wage * contract.part_time / 100)",
-      note="Minimo del livello CCNL, riproporzionato se il contratto è part-time."),
+      amount_select="code", amount_python_compute=BASIC_CODE,
+      note="Minimo del livello CCNL, riproporzionato al part-time. payroll.part_time_mese è la percentuale del mese: "
+           "se l'orario cambia a metà mese (trasformazione) è la media pesata sui giorni delle due versioni del contratto."),
     R(code="GROSS", name="Lordo imponibile", sequence=100, category="GROSS", struct=["BASE", "IT13", "IT_CESS"],
       appears_on_payslip=False, amount_select="code",
       amount_python_compute="result = categories.BASIC + categories.ALW"),
@@ -108,11 +125,11 @@ REGOLE = [
     # --- struttura mensile CCNL metalmeccanico
     R(code="SUPERMIN", name="Superminimo individuale", sequence=2, category="BASIC", struct=["IT_ORD"],
       condition_select=PY, condition_python="result = contract.superminimo > 0",
-      amount_select="code", amount_python_compute="result = arrotonda(contract.superminimo * contract.part_time / 100)"),
+      amount_select="code", amount_python_compute=SUPERMIN_CODE),
     R(code="SCATTI", name="Scatti di anzianità", sequence=3, category="BASIC", struct=["IT_ORD"],
       condition_select="range", condition_range="contract.scatti_n", condition_range_min=1, condition_range_max=99,
       amount_select="code",
-      amount_python_compute="result_qty = contract.scatti_n\nresult = arrotonda(contract.scatto_importo * contract.part_time / 100)",
+      amount_python_compute=SCATTI_CODE,
       note="Esempio di condizione a INTERVALLO e di result_qty: quantità × importo."),
     R(code="ORARIA", name="Paga oraria", sequence=10, category=None, struct=["IT_ORD"], appears_on_payslip=False,
       amount_select="code",
@@ -263,7 +280,7 @@ REGOLE = [
     R(code="RATEI13", name="Ratei di tredicesima", sequence=21, category="BASIC", struct=["IT_CESS"],
       condition_select=PY, condition_python="result = inputs.RATEI_13 and inputs.RATEI_13.amount > 0",
       amount_select="code",
-      amount_python_compute="result_qty = inputs.RATEI_13.amount\nresult = arrotonda(contract.retribuzione_mensile / 12)",
+      amount_python_compute=RATEI13_CODE,
       inputs=[("RATEI_13", "Ratei di tredicesima maturati e non pagati")]),
     R(code="IRPEF_CESS", name="IRPEF: conguaglio di fine rapporto", sequence=250, category="FISC", struct=["IT_CESS"],
       register="Erario - ritenute IRPEF (1001)", amount_select="code", amount_python_compute=CESS_IRPEF_CODE,
@@ -288,10 +305,11 @@ REGOLE = [
     # --- tredicesima
     R(code="TREDICESIMA", name="Tredicesima mensilità", sequence=1, category="BASIC", struct=["IT13"],
       amount_select="code",
-      amount_python_compute=("result_qty = inputs.MESI_13 and inputs.MESI_13.amount or payroll.ratei_13\n"
-                             "result = arrotonda(contract.retribuzione_mensile / 12)"),
+      amount_python_compute=TREDICESIMA_CODE,
       inputs=[("MESI_13", "Mesi maturati (vuoto = calcolo automatico)")],
-      note="Ratei × retribuzione mensile / 12. I ratei si calcolano dal contratto (mese ≥ 15 giorni)."),
+      note="Ratei × retribuzione mensile / 12. I ratei si calcolano dal contratto (mese ≥ 15 giorni). Con una "
+           "trasformazione part-time ↔ tempo pieno ogni rateo vale la retribuzione del suo mese: payroll.retribuzione_13 "
+           "è la media dei mesi maturati."),
     R(code="IRPEF13", name="Ritenuta IRPEF (aliquota marginale)", sequence=250, category="FISC", struct=["IT13"],
       register="Erario - ritenute IRPEF (1001)", amount_select="code",
       amount_python_compute=("base = payroll.reddito_ordinario_annuo\n"
@@ -542,6 +560,7 @@ def seed_workspace(ws: Workspace, with_example=True):
             raise RuntimeError("Errore nei dati demo: " + "; ".join(errors))
         db.session.flush()
         seed_progressivi(ws)
+        seed_hr_extra(ws)
     db.session.commit()
 
 
@@ -563,6 +582,62 @@ def _crea_regola(ws_id, spec, cats, regs, structs, rules):
     db.session.add(rule)
     rules[rule.code] = rule
     return rule
+
+
+MEDICO_COMPETENTE = "Dott.ssa Elena Rinaldi (medico competente)"
+# matr, data, tipo, esito, prescrizioni, scadenza
+VISITE = [
+    ("0001", date(2025, 10, 20), "periodica", "idoneo", "", date(2026, 10, 20)),
+    ("0002", date(2025, 3, 15), "periodica", "idoneo", "", date(2030, 3, 15)),
+    ("0003", date(2026, 2, 12), "periodica", "idoneo", "", date(2027, 2, 12)),
+    ("0004", date(2025, 12, 5), "periodica", "idoneo_prescrizioni",
+     "Uso costante di otoprotettori; evitare la movimentazione manuale di carichi oltre 20 kg", date(2026, 12, 5)),
+    ("0006", date(2026, 2, 18), "periodica", "idoneo", "", date(2027, 2, 18)),
+    ("0007", date(2021, 9, 15), "periodica", "idoneo", "", date(2026, 9, 15)),
+    ("0008", date(2026, 5, 25), "preventiva", "idoneo", "", date(2027, 5, 25)),
+]
+# titolo, categoria, ente, dal, al, ore, costo, validità anni, partecipanti [(matr, esito)]
+CORSI = [
+    ("Formazione generale e specifica lavoratori - rischio alto (16 ore)", "sicurezza_specifica",
+     "Ente bilaterale metalmeccanici Umbria", date(2026, 6, 3), date(2026, 6, 5), 16, 220.0, 5,
+     [("0008", "superato")]),
+    ("Aggiornamento sicurezza lavoratori (6 ore)", "aggiornamento", "Ente bilaterale metalmeccanici Umbria",
+     date(2022, 3, 10), date(2022, 3, 10), 6, 270.0, 5, [("0001", "superato"), ("0003", "superato"), ("0004", "superato")]),
+    ("Addetto antincendio - livello 2 (8 ore)", "antincendio", "Vigili del fuoco - corso esterno",
+     date(2021, 11, 20), date(2021, 11, 20), 8, 160.0, 5, [("0002", "superato")]),
+    ("Addetto primo soccorso - gruppo B (12 ore)", "primo_soccorso", "Croce Rossa - comitato locale",
+     date(2023, 5, 15), date(2023, 5, 16), 12, 190.0, 3, [("0007", "superato")]),
+    ("Saldatura TIG su acciaio inox (aggiornamento tecnico)", "tecnico", "Fornitore impianti di saldatura",
+     date(2025, 4, 8), date(2025, 4, 9), 16, 900.0, 0, [("0004", "superato"), ("0006", "superato")]),
+]
+
+
+def seed_hr_extra(ws: Workspace):
+    """Storico orari, visite mediche e corsi di formazione dei dipendenti demo (solo se mancano)."""
+    from .models import Corso, CorsoPartecipante, EmployeeCalendar, VisitaMedica
+    ws_id = ws.id
+    emps = {e.registration_number: e for e in Employee.query.filter_by(workspace_id=ws_id)}
+    if not EmployeeCalendar.query.filter_by(workspace_id=ws_id).first():
+        for e in emps.values():
+            inizio = min((c.date_start for c in e.contract_ids if c.state in ("open", "close")), default=None)
+            cal = e.resource_calendar
+            if cal and inizio:
+                db.session.add(EmployeeCalendar(workspace_id=ws_id, employee=e, calendar=cal, date_start=inizio,
+                                                motivo="Orario all'assunzione"))
+    if not VisitaMedica.query.filter_by(workspace_id=ws_id).first():
+        for matr, d, tipo, esito, prescr, scad in VISITE:
+            if matr in emps:
+                db.session.add(VisitaMedica(workspace_id=ws_id, employee=emps[matr], data=d, tipo=tipo, esito=esito,
+                                            prescrizioni=prescr, medico=MEDICO_COMPETENTE, scadenza=scad))
+    if not Corso.query.filter_by(workspace_id=ws_id).first():
+        for titolo, cat, ente, d1, d2, ore, costo, val, part in CORSI:
+            c = Corso(workspace_id=ws_id, titolo=titolo, categoria=cat, ente=ente, data_inizio=d1, data_fine=d2,
+                      ore=ore, costo=costo, validita_anni=val, stato="svolto")
+            for matr, esito in part:
+                if matr in emps:
+                    c.partecipanti.append(CorsoPartecipante(workspace_id=ws_id, employee=emps[matr], esito=esito))
+            db.session.add(c)
+    db.session.flush()
 
 
 def seed_progressivi(ws: Workspace, anno=2026):
@@ -635,6 +710,7 @@ def upgrade_workspace(ws: Workspace):
             r.amount_python_compute = vecchia_nuova[1]
     db.session.flush()
     seed_progressivi(ws)
+    seed_hr_extra(ws)
     db.session.commit()
 
 

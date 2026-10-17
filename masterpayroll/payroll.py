@@ -237,10 +237,13 @@ def get_worked_day_lines(slip, contracts, date_from, date_to):
 
 
 def worked_day_lines_for(ws, contracts, date_from, date_to):
-    from .hr_service import day_work_hours
+    from .hr_service import calendari_periodo, day_work_hours
+    from .models import EmployeeCalendar
     res = []
     for contract in contracts:
         calendar = contract.resource_calendar or contract.employee.resource_calendar
+        if EmployeeCalendar.query.filter_by(employee_id=contract.employee_id).first():
+            calendar = calendari_periodo(contract.employee, date_from, date_to)  # storico orari: orario del giorno
         if not calendar:
             continue
         day_from = max(date_from, contract.date_start)
@@ -258,7 +261,7 @@ def worked_day_lines_for(ws, contracts, date_from, date_to):
                 "code": ltype.code if ltype else "GLOBAL",
                 "number_of_days": 0.0, "number_of_hours": 0.0, "contract_id": contract.id})
             cur["number_of_hours"] += sign * hours
-            wh = day_work_hours(calendar, day)
+            wh = day_work_hours(calendar(day) if callable(calendar) else calendar, day)
             if wh:
                 cur["number_of_days"] += sign * hours / wh
         res.extend(leaves.values())
@@ -304,7 +307,10 @@ def get_payroll_dict(slip, contracts):
         res[p.codice] = p.valore
     contract = contracts[0] if contracts else None
     if contract:
+        from .hr_service import part_time_mese
         res["ratei_13"] = ratei_tredicesima(contract, slip.date_to)
+        res["part_time_mese"] = part_time_mese(slip.employee, contract, slip.date_from, slip.date_to)
+        res["retribuzione_13"] = retribuzione_media_ratei(contract, slip.date_to)
         inps = SalaryRule.query.filter_by(workspace_id=slip.workspace_id, code="INPS_DIP").first()
         aliq = abs(inps.amount_percentage) if inps and inps.amount_select == "percentage" else 9.19
         res["reddito_ordinario_annuo"] = round(contract.retribuzione_mensile * 12 * (1 - aliq / 100), 2)
@@ -351,17 +357,37 @@ def dati_conguaglio(slip, contract):
             "cong_giorni": min(365, giorni)}
 
 
+def _mesi_rateo(contract, ref_date):
+    """Mesi dell'anno che maturano un rateo (rapporto di almeno 15 giorni nel mese, sommando le versioni del
+    contratto) con la retribuzione mensile del mese, pesata sui giorni se il part-time è cambiato nel mese."""
+    year = ref_date.year
+    versioni = [c for c in contract.employee.contract_ids if c.state in ("open", "close")] if contract.employee else []
+    if contract not in versioni:
+        versioni.append(contract)
+    out = []
+    for m in range(1, ref_date.month + 1):
+        d1, d2 = date(year, m, 1), date(year, m, _cal.monthrange(year, m)[1])
+        tratti = []
+        for c in versioni:
+            a, b = max(d1, c.date_start), min(d2, c.date_end or d2)
+            if b >= a:
+                tratti.append((c, (b - a).days + 1))
+        giorni = sum(g for _, g in tratti)
+        if giorni >= 15:
+            out.append(sum(c.retribuzione_mensile * g for c, g in tratti) / giorni)
+    return out
+
+
 def ratei_tredicesima(contract, ref_date):
     """Mesi maturati nell'anno: conta il mese se lavorato per almeno 15 giorni."""
-    year = ref_date.year
-    n = 0
-    for m in range(1, ref_date.month + 1):
-        last = _cal.monthrange(year, m)[1]
-        start = max(date(year, m, 1), contract.date_start)
-        end = min(date(year, m, last), contract.date_end or date(year, m, last))
-        if end >= start and (end - start).days + 1 >= 15:
-            n += 1
-    return n
+    return len(_mesi_rateo(contract, ref_date))
+
+
+def retribuzione_media_ratei(contract, ref_date):
+    """Retribuzione mensile media dei mesi che maturano i ratei: con un solo contratto è la retribuzione del
+    contratto; con una trasformazione (part-time ↔ tempo pieno) ogni rateo vale la retribuzione del suo mese."""
+    mesi = _mesi_rateo(contract, ref_date)
+    return round(sum(mesi) / len(mesi), 4) if mesi else contract.retribuzione_mensile
 
 
 def get_current_contract_dict(slip, contract, contracts):
@@ -560,7 +586,7 @@ def onchange_employee(slip, keep_contract=False, keep_struct=False):
         contracts = get_employee_contracts(slip)
         if not contracts:
             return
-        slip.contract = contracts[0]
+        slip.contract = sorted(contracts, key=lambda c: c.date_start)[-1]
     if not slip.struct_id and not keep_struct:
         if not slip.contract.struct:
             return
@@ -576,7 +602,9 @@ def onchange_dates(slip):
     for wd in list(slip.worked_days_line_ids):
         slip.worked_days_line_ids.remove(wd)
     db.session.flush()
-    for vals in get_worked_day_lines(slip, get_employee_contracts(slip), slip.date_from, slip.date_to):
+    # tutte le versioni del contratto nel periodo: con una variazione di orario a metà mese si vedono due righe
+    versioni = get_contracts(slip.employee, slip.date_from, slip.date_to) or get_employee_contracts(slip)
+    for vals in get_worked_day_lines(slip, versioni, slip.date_from, slip.date_to):
         slip.worked_days_line_ids.append(PayslipWorkedDays(**vals))
 
 
@@ -603,7 +631,7 @@ def get_payslip_vals(ws_id, date_from, date_to, employee, contract_id=None, stru
     contracts = [c for c in contracts if c]
     if not contracts:
         return res
-    contract = contracts[0]
+    contract = sorted(contracts, key=lambda c: c.date_start)[-1]  # la versione in vigore a fine periodo
     res["contract_id"] = contract.id
     if struct_id:
         res["struct_id"] = struct_id
@@ -615,7 +643,7 @@ def get_payslip_vals(ws_id, date_from, date_to, employee, contract_id=None, stru
     struct = db.session.get(PayrollStructure, res["struct_id"])
     ws = db.session.get(Workspace, ws_id)
     res["worked_days_line_ids"] = worked_day_lines_for(ws, contracts, date_from, date_to)
-    res["input_line_ids"] = inputs_for(struct, contracts)
+    res["input_line_ids"] = inputs_for(struct, [contract])
     return res
 
 

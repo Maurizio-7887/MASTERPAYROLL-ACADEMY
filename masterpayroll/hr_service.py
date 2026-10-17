@@ -5,7 +5,7 @@ Riproduce ciò che in Odoo fanno ``employee._get_work_days_data_batch`` e
 """
 from datetime import timedelta
 
-from .models import Leave, ResourceCalendarLeave
+from .models import EmployeeCalendar, Leave, ResourceCalendarLeave
 
 WEEKDAYS = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
 
@@ -15,6 +15,62 @@ def daterange(d1, d2):
     while d <= d2:
         yield d
         d += timedelta(days=1)
+
+
+def calendario_al(employee, day):
+    """Orario di lavoro valido in quel giorno: storico degli orari (hr.employee.calendar), poi il contratto in
+    vigore quel giorno, poi l'orario della scheda dipendente."""
+    if employee is None:
+        return None
+    for ec in EmployeeCalendar.query.filter_by(employee_id=employee.id).order_by(EmployeeCalendar.date_start):
+        if (ec.date_start is None or ec.date_start <= day) and (ec.date_end is None or ec.date_end >= day):
+            return ec.calendar
+    for c in employee.contract_ids:
+        if c.state in ("open", "close") and c.date_start <= day and (c.date_end is None or c.date_end >= day):
+            if c.resource_calendar:
+                return c.resource_calendar
+    return employee.resource_calendar
+
+
+def calendari_periodo(employee, d1, d2):
+    """Funzione giorno → orario per un periodo, calcolata una volta sola (lo storico si legge una volta)."""
+    storico = EmployeeCalendar.query.filter_by(employee_id=employee.id).all() if employee else []
+    contratti = [c for c in (employee.contract_ids if employee else []) if c.state in ("open", "close")]
+
+    def cal(day):
+        for ec in storico:
+            if (ec.date_start is None or ec.date_start <= day) and (ec.date_end is None or ec.date_end >= day):
+                return ec.calendar
+        for c in contratti:
+            if c.date_start <= day and (c.date_end is None or c.date_end >= day) and c.resource_calendar:
+                return c.resource_calendar
+        return employee.resource_calendar if employee else None
+    return cal
+
+
+def versioni_del_mese(employee, d1, d2):
+    """Versioni del contratto nel periodo con i giorni di calendario coperti da ciascuna: [(contratto, giorni)]."""
+    out = []
+    for c in employee.contract_ids:
+        if c.state not in ("open", "close") or not c.is_overlapping_period(d1, d2):
+            continue
+        a, b = max(d1, c.date_start), min(d2, c.date_end or d2)
+        if b >= a:
+            out.append((c, (b - a).days + 1))
+    return sorted(out, key=lambda x: x[0].date_start)
+
+
+def part_time_mese(employee, contract, d1, d2):
+    """Percentuale di part-time del mese pesata sui giorni delle versioni del contratto (mese commerciale).
+
+    Un solo contratto nel mese → la sua percentuale. Trasformazione a metà mese (es. 50% fino al 15, 100% dal 16)
+    → media pesata sui giorni: 15/30 × 50 + 15/30 × 100 = 75%. Ingressi/uscite a metà mese non riducono la paga
+    (come prima): la media è sui giorni coperti dai contratti."""
+    vers = versioni_del_mese(employee, d1, d2) if employee else []
+    tot = sum(g for _, g in vers)
+    if len(vers) < 2 or not tot:
+        return contract.part_time or 100.0
+    return round(sum((c.part_time or 100.0) * g for c, g in vers) / tot, 4)
 
 
 def attendance_intervals(calendar, day):
@@ -34,8 +90,9 @@ def overlap_hours(intervals, h_from, h_to):
 def work_days_data(calendar, day_from, day_to):
     """Giorni e ore previsti dal calendario (festività comprese, come compute_leaves=False)."""
     days = hours = 0.0
+    cal_of = calendar if callable(calendar) else (lambda _d: calendar)
     for d in daterange(day_from, day_to):
-        h = day_work_hours(calendar, d)
+        h = day_work_hours(cal_of(d), d)
         if h > 0:
             days += 1
             hours += h
@@ -50,18 +107,21 @@ def list_leaves(employee, calendar, day_from, day_to):
     out = []
     if not calendar:
         return out
-    globals_ = {gl.date: gl for gl in ResourceCalendarLeave.query.filter(
-        ResourceCalendarLeave.workspace_id == employee.workspace_id,
-        ResourceCalendarLeave.date >= day_from, ResourceCalendarLeave.date <= day_to)
-        if gl.calendar_id in (None, calendar.id)}
+    cal_of = calendar if callable(calendar) else (lambda _d: calendar)
+    globals_ = {}
+    for gl in ResourceCalendarLeave.query.filter(
+            ResourceCalendarLeave.workspace_id == employee.workspace_id,
+            ResourceCalendarLeave.date >= day_from, ResourceCalendarLeave.date <= day_to):
+        globals_.setdefault(gl.date, []).append(gl)
     leaves = Leave.query.filter(Leave.employee_id == employee.id, Leave.state == "validate",
                                 Leave.date_from <= day_to, Leave.date_to >= day_from).all()
     for d in daterange(day_from, day_to):
-        intervals = attendance_intervals(calendar, d)
+        cal_d = cal_of(d)
+        intervals = attendance_intervals(cal_d, d)
         h_day = sum(t - f for f, t in intervals)
         if h_day <= 0:
             continue
-        if d in globals_:
+        if any(gl.calendar_id in (None, cal_d.id) for gl in globals_.get(d, [])):
             out.append((d, h_day, None))
             continue
         for lv in leaves:
@@ -78,10 +138,10 @@ def list_leaves(employee, calendar, day_from, day_to):
 
 def leave_duration(leave):
     """Giorni e ore di un'assenza secondo il calendario del dipendente (per la lista assenze)."""
-    cal = leave.employee.resource_calendar if leave.employee else None
+    cal = calendari_periodo(leave.employee, leave.date_from, leave.date_to) if leave.employee else (lambda _d: None)
     days = hours = 0.0
     for d in daterange(leave.date_from, leave.date_to):
-        intervals = attendance_intervals(cal, d)
+        intervals = attendance_intervals(cal(d), d)
         h_day = sum(t - f for f, t in intervals)
         if h_day <= 0:
             continue
@@ -180,22 +240,26 @@ def contatori_ferie(employee, anno, fino, ore_ferie_anno=160.0, ore_rol_anno=104
     assenze approvate FERIE e ROL fino alla data."""
     from datetime import date
     from .models import LeaveType
-    contracts = [c for c in employee.contract_ids if c.state in ("open", "close")
-                 and c.date_start <= fino and (c.date_end is None or c.date_end >= date(anno, 1, 1))]
+    import calendar as _c
     mat_f = mat_r = 0.0
-    for c in contracts:
-        mesi = mesi_maturati(c, anno, fino)
-        pt = (c.part_time or 100) / 100
-        mat_f += ore_ferie_anno * pt * mesi / 12
-        mat_r += ore_rol_anno * pt * mesi / 12
+    for m in range(1, fino.month + 1 if fino.year == anno else 13):
+        d1 = date(anno, m, 1)
+        d2 = min(date(anno, m, _c.monthrange(anno, m)[1]), fino)
+        vers = versioni_del_mese(employee, d1, d2)
+        giorni = sum(g for _, g in vers)
+        if giorni < 15:  # il mese matura se il rapporto copre almeno 15 giorni (anche con più versioni)
+            continue
+        pt = sum((c.part_time or 100) * g for c, g in vers) / giorni / 100
+        mat_f += ore_ferie_anno * pt / 12
+        mat_r += ore_rol_anno * pt / 12
     god = {"FERIE": 0.0, "ROL": 0.0}
     leaves = (Leave.query.join(LeaveType, Leave.holiday_status_id == LeaveType.id)
               .filter(Leave.employee_id == employee.id, Leave.state == "validate", LeaveType.code.in_(("FERIE", "ROL")),
                       Leave.date_from <= fino, Leave.date_to >= date(anno, 1, 1)).all())
-    cal = employee.resource_calendar
+    cal = calendari_periodo(employee, date(anno, 1, 1), fino)
     for lv in leaves:
         for d in daterange(max(lv.date_from, date(anno, 1, 1)), min(lv.date_to, fino)):
-            intervals = attendance_intervals(cal, d)
+            intervals = attendance_intervals(cal(d), d)
             h_day = sum(t - f for f, t in intervals)
             if h_day <= 0:
                 continue

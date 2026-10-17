@@ -49,7 +49,7 @@ ogni regola già calcolata. Come in Odoo le **trattenute sono negative**. I test
 Ogni attività è un blueprint Flask in `masterpayroll/blueprints/<attività>/`, con il suo `__init__.py` (le rotte) e
 un HTML per ogni pagina in `templates/<attività>/`: `accesso`, `cruscotto`, `dipendenti`, `contratti`, `orari`,
 `assenze`, `ferie_permessi`, `buste_paga`, `gruppi`, `cessazioni`, `regole`, `registri`, `impostazioni`, `f24`, `lul`,
-`contabilita`, `cu`, `posta`, `esercizio`, `docente`. In `masterpayroll/templates/` restano solo `base.html` e `_macros.html`.
+`contabilita`, `cu`, `variazioni`, `visite_mediche`, `formazione`, `documenti`, `posta`, `esercizio`, `docente`. In `masterpayroll/templates/` restano solo `base.html` e `_macros.html`.
 
 ## Funzioni aggiunte (ottobre 2026)
 
@@ -66,9 +66,22 @@ un HTML per ogni pagina in `templates/<attività>/`: `accesso`, `cruscotto`, `di
 * F24: i contributi INPS si sommano per valore (dipendente + azienda) e l'indennità di malattia si scala come credito.
 * Gli ambienti già creati si aggiornano da soli al primo accesso (`seed.upgrade_workspace`), senza perdere il lavoro.
 
+## Moduli HR dal blocco OCA hr-19.0
+
+* **Variazioni di orario e part-time** (`hr_employee_calendar_planning` + `hr.version`): storico degli orari del
+  dipendente; una trasformazione part-time ↔ tempo pieno chiude il contratto il giorno prima e crea una nuova versione.
+  Nel mese della variazione la busta ha una riga WORK100 per versione e la paga è pesata sui giorni
+  (`payroll.part_time_mese`); ferie, permessi e ratei di tredicesima maturano mese per mese (`payroll.retribuzione_13`).
+* **Visite mediche** (`hr_employee_medical_examination`): sorveglianza sanitaria D.Lgs. 81/08, giudizio di idoneità,
+  prescrizioni, prossima visita.
+* **Corsi di formazione** (`hr_course`): corsi con ore, costo, validità e partecipanti con esito; formazione per dipendente.
+* **Documenti del dipendente** (`hr_employee_document`): file fino a 5 MB con scadenza.
+* **Scadenzario del personale**: visite, corsi da rinnovare e documenti scaduti o in scadenza (preavviso nelle Tabelle),
+  anche nel Cruscotto.
+
 ## Esercizio passo passo
 
-Su ogni pagina c'è la finestra a destra **Esercizio passo passo** (ottobre–dicembre 2026, 30 passi): per ogni azione
+Su ogni pagina c'è la finestra a destra **Esercizio passo passo** (ottobre–dicembre 2026, 35 passi): per ogni azione
 indica la pagina («Apri la pagina»), i dati da scrivere e il risultato atteso. Le operazioni si spuntano da sole
 controllando i dati dell'allievo; le letture si confermano con «Fatto». Panoramica in Academy → Esercizio passo passo;
 nell'area docente la colonna «Guida» mostra a che punto è ogni allievo.

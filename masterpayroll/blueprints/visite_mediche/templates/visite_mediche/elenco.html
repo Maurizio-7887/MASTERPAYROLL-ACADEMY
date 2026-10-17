@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cp, csrf %}
+{% block title %}Visite mediche{% endblock %}
+{% block controlpanel %}{% call cp([("Visite mediche", None)], "hr.employee.medical.examination") %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('visite_mediche.scadenzario_hr') }}"><i class="bi bi-alarm"></i> Scadenzario</a>{% endcall %}{% endblock %}
+{% block content %}
+{% if not ws_altrui %}
+<div class="o-sheet alone mb-3">
+  <h5 class="page-title mb-2"><i class="bi bi-heart-pulse"></i> Registra una visita</h5>
+  <form method="post" class="row g-2 align-items-end">{{ csrf() }}
+    <div class="col-md-3"><label class="form-label small fw-semibold">Dipendente</label>
+      <select name="employee_id" class="form-select form-select-sm" required><option value=""></option>{% for e in attivi %}<option value="{{ e.id }}" {{ 'selected' if e.id == emp_id }}>{{ e.name }} · {{ e.job_title }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Data della visita</label><input type="date" name="data" class="form-control form-control-sm" required></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Tipo</label>
+      <select name="tipo" class="form-select form-select-sm">{% for k, l in tipi %}<option value="{{ k }}" {{ 'selected' if k == 'periodica' }}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Esito (giudizio)</label>
+      <select name="esito" class="form-select form-select-sm">{% for k, l in esiti %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Prossima visita entro</label><input type="date" name="scadenza" class="form-control form-control-sm"></div>
+    <div class="col-md-5"><label class="form-label small fw-semibold">Prescrizioni / limitazioni</label><input name="prescrizioni" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="form-label small fw-semibold">Medico competente</label><input name="medico" value="{{ medico }}" class="form-control form-control-sm"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-check2"></i> Registra</button></div>
+  </form>
+  <p class="small text-muted mt-2 mb-0">La periodicità la stabilisce il medico competente nel protocollo sanitario: di norma <strong>annuale</strong>
+  per chi è esposto a rumore, vibrazioni o fumi di saldatura; per i videoterminalisti (almeno 20 ore la settimana) ogni <strong>5 anni</strong>, ogni 2 dopo i 50 anni.
+  La visita si fa in orario di lavoro ed è a carico dell'azienda.</p>
+</div>
+{% endif %}
+<div class="d-flex justify-content-between align-items-center"><h6 class="fw-bold mb-2">Visite registrate</h6>
+  <form method="get"><select name="employee_id" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Tutti</option>{% for e in attivi %}<option value="{{ e.id }}" {{ 'selected' if e.id == emp_id }}>{{ e.name }}</option>{% endfor %}</select></form></div>
+<div class="o-list table-responsive"><table class="table table-sm table-hover">
+  <thead><tr><th>Dipendente</th><th>Data</th><th>Tipo</th><th>Esito</th><th>Prescrizioni</th><th>Prossima visita</th></tr></thead>
+  <tbody>{% for v in visite %}<tr class="click" data-href="{{ url_for('visite_mediche.visita', vis_id=v.id) }}"><td>{{ v.employee.name }}</td><td>{{ v.data|data }}</td><td class="small">{{ dict(tipi).get(v.tipo, v.tipo).split(' (')[0] }}</td>
+    <td><span class="badge {{ 'text-bg-success' if v.esito == 'idoneo' else ('text-bg-warning' if v.esito == 'idoneo_prescrizioni' else 'text-bg-danger') }}">{{ dict(esiti).get(v.esito, v.esito) }}</span></td><td class="small">{{ v.prescrizioni }}</td><td>{{ v.scadenza|data }}</td></tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Nessuna visita.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

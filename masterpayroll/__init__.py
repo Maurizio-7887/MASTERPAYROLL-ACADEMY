@@ -90,6 +90,7 @@ def create_app(test_config=None):
         SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        MAX_CONTENT_LENGTH=8 * 1024 * 1024,  # documenti dei dipendenti: file fino a 5 MB
         ADMIN_USERNAME=os.environ.get("ADMIN_USERNAME", "docente"),
         ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD", ""),
     )
@@ -181,7 +182,7 @@ def ensure_workspace(user):
         db.session.commit()
     if not Parametro.query.filter_by(workspace_id=ws.id).first():
         seed_workspace(ws)
-    elif not Parametro.query.filter_by(workspace_id=ws.id, codice="TFR_SOSTITUTIVA").first():
+    elif not Parametro.query.filter_by(workspace_id=ws.id, codice="SCADENZE_PREAVVISO_GG").first():
         from .seed import upgrade_workspace
         upgrade_workspace(ws)  # ambiente creato con una versione precedente: si aggiunge ciò che manca
     return ws

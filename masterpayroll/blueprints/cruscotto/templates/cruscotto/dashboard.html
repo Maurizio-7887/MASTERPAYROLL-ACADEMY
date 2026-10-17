@@ -29,11 +29,16 @@
       <div class="row">
         <div class="col-md-6"><strong>Libro paga</strong><br>Buste paga dipendente · Gruppi buste paga · Righe busta paga · Versamenti F24</div>
         <div class="col-md-6"><strong>Configurazione</strong><br>Impostazioni · Strutture stipendio · Categorie · Regole stipendio · Registri contributi</div>
-        <div class="col-md-6 mt-2"><strong>Dipendenti</strong><br>Dipendenti e familiari a carico · Contratti · Orari di lavoro</div>
+        <div class="col-md-6 mt-2"><strong>Dipendenti</strong><br>Dipendenti e familiari a carico · Contratti · Orari di lavoro · Variazioni di orario · Documenti · Visite mediche · Corsi di formazione</div>
         <div class="col-md-6 mt-2"><strong>Assenze</strong><br>Assenze (entrano nei giorni lavorati) · Tipi di assenza · Festività</div>
       </div></div></div>
   </div>
   <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-alarm"></i> Scadenze del personale</span><a href="{{ url_for('visite_mediche.scadenzario_hr') }}" class="small">scadenzario</a></div>
+      <ul class="list-group list-group-flush">{% for r in scadenze[:6] %}
+        <li class="list-group-item small d-flex justify-content-between gap-2"><span><span class="badge text-bg-{{ stati_scad[r.stato][1] }}">{{ stati_scad[r.stato][0] }}</span> {{ r.employee.name }} · {{ r.cosa }}</span><span class="text-nowrap">{{ r.scadenza|data if r.scadenza }}</span></li>
+      {% else %}<li class="list-group-item small text-muted">Nessuna visita, corso o documento in scadenza.</li>{% endfor %}
+      {% if scadenze|length > 6 %}<li class="list-group-item small text-muted">e altre {{ scadenze|length - 6 }}…</li>{% endif %}</ul></div>
     <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span>Esercitazioni</span><a href="{{ url_for('cruscotto.esercitazioni') }}" class="small">apri</a></div>
       <ul class="list-group list-group-flush">{% for e in esercitazioni %}
         <li class="list-group-item d-flex justify-content-between small"><span>{{ loop.index }}. {{ e.titolo }}</span>{% if e.id in svolte %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<span class="badge text-bg-light">{{ e.livello }}</span>{% endif %}</li>{% endfor %}</ul></div>

@@ -9,8 +9,8 @@ from datetime import date
 from flask import abort, g, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from ...models import (Cessazione, Contabilizzazione, Employee, EsercizioSpunta, Leave, LeaveType, PayslipRun,
-                       db)
+from ...models import (Cessazione, Contabilizzazione, Contract, Corso, CorsoPartecipante, Employee, EsercizioSpunta,
+                       Leave, LeaveType, PayslipRun, VisitaMedica, db)
 from ..comune import area
 
 bp = area("esercizio")
@@ -73,6 +73,25 @@ NOV = (date(2026, 11, 1), date(2026, 11, 30))
 DIC = (date(2026, 12, 1), date(2026, 12, 31))
 
 
+def _visita(matr, d, esito, scad):
+    e = _emp(matr)
+    return bool(e) and _q(VisitaMedica).filter_by(employee_id=e.id, data=d, esito=esito, scadenza=scad).first() is not None
+
+
+def _trasformazione(matr, dal, pt):
+    e = _emp(matr)
+    return bool(e) and _q(Contract).filter_by(employee_id=e.id, date_start=dal, part_time=pt, state="open").first() is not None
+
+
+def _corso(matr, categoria, dal):
+    e = _emp(matr)
+    if not e:
+        return False
+    return (CorsoPartecipante.query.join(Corso).filter(Corso.workspace_id == _W["ws"].id, Corso.categoria == categoria,
+                                                       Corso.data_inizio == dal, CorsoPartecipante.employee_id == e.id,
+                                                       CorsoPartecipante.esito == "superato").first() is not None)
+
+
 def _cess():
     e = _emp("0004")
     return _q(Cessazione).filter_by(employee_id=e.id).first() if e else None
@@ -92,7 +111,7 @@ def passo(pid, cap, titolo, ep, campi, attesa="", nota="", check=None, args=None
 
 
 C1, C2, C3, C4, C5, C6, C7 = ("1 · Si comincia", "2 · Le assenze di ottobre", "3 · Le buste di ottobre",
-                              "4 · Dopo le paghe di ottobre", "5 · Novembre e una cessazione",
+                              "4 · Dopo le paghe di ottobre", "5 · Novembre: una trasformazione e una cessazione",
                               "6 · Dicembre: tredicesima e conguaglio", "7 · Fine anno")
 passo("pulito", C1, "Parti da un ambiente pulito", "cruscotto.dashboard",
       [("Se hai già lavorato", "in fondo al Cruscotto scrivi RIPRISTINA e premi «Ripristina l'ambiente»"),
@@ -161,12 +180,41 @@ passo("lul-ott", C4, "Controlla il Libro unico di ottobre", "lul.libro",
 passo("ferie-ott", C4, "Leggi i contatori di ferie e permessi al 31 ottobre", "ferie_permessi.contatori",
       [("Situazione al", "31/10/2026"), ("Bianchi", "ferie godute 16 ore"), ("Verdi", "permessi goduti 4 ore")],
       nota="Si maturano 160 ore di ferie e 104 di permessi l'anno, in dodicesimi.")
+passo("visita-bianchi", C4, "Bianchi Marco fa la visita medica periodica il 20 ottobre", "visite_mediche.elenco",
+      [("Dipendente", "Bianchi Marco"), ("Data della visita", "20/10/2026"), ("Tipo", "Periodica"), ("Esito", "Idoneo"),
+       ("Prossima visita entro", "20/10/2027"), ("Pulsante", "Registra")],
+      attesa="La visita del 2025 scadeva proprio il 20/10/2026: nello scadenzario Bianchi torna «in regola».",
+      nota="Chi lavora al taglio laser è esposto a rumore: il medico competente fissa la visita ogni anno (D.Lgs. 81/08 art. 41).",
+      check=lambda: _visita("0001", date(2026, 10, 20), "idoneo", date(2027, 10, 20)))
+passo("trasf-ferri", C5, "Ferri Anna passa al tempo pieno dal 16 novembre", "variazioni.elenco",
+      [("Dove", "Dipendenti → Variazioni di orario e part-time"), ("Dipendente", "Ferri Anna"), ("Dal giorno", "16/11/2026"),
+       ("Nuovo orario", "Tempo pieno 40 ore (lun-ven 8-12 / 13-17)"), ("% part-time", "100"),
+       ("Motivo", "trasformazione a tempo pieno su richiesta della lavoratrice"), ("Pulsante", "Registra la variazione")],
+      attesa="Il contratto part-time 50% si chiude il 15/11; dal 16/11 c'è una nuova versione al 100% con il nuovo orario.",
+      nota="La trasformazione si fa PRIMA di generare le buste del mese: la busta legge versioni e orari dal calendario.",
+      check=lambda: _trasformazione("0005", date(2026, 11, 16), 100.0))
 passo("gruppo-nov", C5, "Crea il gruppo di novembre e genera le buste", "gruppi.run_new",
       [("Nome", "Novembre 2026"), ("Periodo", "01/11/2026 – 30/11/2026"), ("Poi", "Genera buste paga per tutti e 8")],
       attesa="8 buste calcolate.", check=lambda: len(getattr(_gruppo(*NOV), "slip_ids", []) or []) >= 8)
+passo("leggi-ferri", C5, "Leggi la busta di novembre di Ferri: due versioni nello stesso mese", "gruppi.runs",
+      [("Busta", "Ferri Anna di novembre"),
+       ("Tab «Giorni lavorati e apporti»", "due righe WORK100: una per il part-time (1-15) e una per il tempo pieno (16-30)"),
+       ("BASIC", "2.110 × 75% = 1.582,50: 15 giorni al 50% e 15 al 100% su un mese di 30"),
+       ("Effetto", "il reddito annuo presunto passa a 24.909 €: niente più trattamento integrativo né somma esente del "
+                   "cuneo; scatta l'ulteriore detrazione del cuneo (83,33 € al mese)")],
+      nota="Le ferie e i permessi di novembre maturano al 75%; da dicembre al 100%.")
 passo("chiudi-nov", C5, "Conferma le buste di novembre e chiudi il gruppo", "gruppi.runs",
       [("Azione", "Cambia stato → Conferma su tutte"), ("Poi", "Chiudi lotto")],
       check=lambda: _tutte(_gruppo(*NOV), "done", 8) and getattr(_gruppo(*NOV), "state", "") == "close")
+passo("corso-moretti", C5, "Moretti frequenta il corso per i carrelli elevatori il 9 e 10 novembre", "formazione.corsi",
+      [("Titolo", "Abilitazione all'uso dei carrelli elevatori (12 ore)"), ("Categoria", "Abilitazione attrezzature"),
+       ("Ente", "Ente bilaterale metalmeccanici Umbria"), ("Dal / Al", "09/11/2026 – 10/11/2026"), ("Ore", "12"),
+       ("Costo totale €", "240"), ("Validità", "5 anni"), ("Stato", "Svolto"),
+       ("Poi", "nella scheda del corso aggiungi Moretti Paolo con esito «Superato»")],
+      attesa="Nella formazione per dipendente Moretti ha il corso con scadenza 10/11/2031.",
+      nota="Le ore di formazione obbligatoria sono orario di lavoro: in busta non cambia nulla, il costo del corso è "
+           "un costo dell'azienda (non va nelle paghe).",
+      check=lambda: _corso("0008", "abilitazione", date(2026, 11, 9)))
 passo("cessazione", C5, "Esposito Giuseppe si dimette: ultimo giorno 30 novembre", "cessazioni.elenco",
       [("Dipendente", "Esposito Giuseppe"), ("Ultimo giorno", "30/11/2026"), ("Motivo", "Dimissioni del lavoratore"),
        ("Prima", "Calcola il prospetto del TFR e leggilo"), ("Poi", "Conferma la cessazione e crea la busta di liquidazione")],
@@ -186,7 +234,8 @@ passo("gruppo-13", C6, "Crea il gruppo della tredicesima", "gruppi.run_new",
 passo("conferma-13", C6, "Genera, conferma e chiudi la tredicesima", "gruppi.runs",
       [("Genera buste paga", "i 7 dipendenti in servizio (Esposito è in archivio: ha già avuto i ratei)"),
        ("Poi", "Cambia stato → Conferma su tutte, e Chiudi lotto")],
-      attesa="Moretti ha 7 ratei (da giugno), gli altri 12. L'IRPEF è all'aliquota marginale, senza detrazioni.",
+      attesa="Moretti ha 7 ratei (da giugno), gli altri 12. Per Ferri ogni rateo vale la paga del suo mese: 10 al 50%, "
+             "novembre al 75%, dicembre al 100%. L'IRPEF è all'aliquota marginale, senza detrazioni.",
       check=lambda: _tutte(_gruppo(*DIC, struct="IT13"), "done", 7) and getattr(_gruppo(*DIC, struct="IT13"), "state", "") == "close")
 passo("gruppo-dic", C6, "Crea il gruppo di dicembre e genera le buste", "gruppi.run_new",
       [("Nome", "Dicembre 2026"), ("Periodo", "01/12/2026 – 31/12/2026"), ("Struttura", "vuota"), ("Poi", "Genera buste paga per i 7 dipendenti")],
@@ -205,6 +254,13 @@ passo("contab-dic", C7, "Registra le paghe di dicembre in contabilità", "contab
 passo("cu", C7, "Leggi la Certificazione Unica 2026", "cu.certificazione",
       [("Anno", "2026"), ("Moretti", "redditi da giugno, ritenute dopo il conguaglio"), ("Esposito", "anche il TFR con le sue ritenute")],
       nota="La CU va all'Agenzia delle Entrate entro il 16 marzo e si consegna al dipendente.")
+passo("scadenzario", C7, "Controlla lo scadenzario del personale al 31 dicembre", "visite_mediche.scadenzario_hr",
+      [("Situazione al", "31/12/2026"), ("Galli", "visita periodica scaduta il 15/09/2026 e primo soccorso scaduto"),
+       ("Rossi", "antincendio scaduto il 20/11/2026: va rifatto l'aggiornamento"),
+       ("Ferri", "nessuna visita: ora lavora 40 ore al videoterminale, serve la visita"),
+       ("Esposito", "non c'è più: è in archivio")],
+      nota="Le scadenze di visite e corsi non toccano la busta ma sono obblighi del datore di lavoro: chi fa le paghe spesso "
+           "tiene anche questo scadenzario.", args={"al": "2026-12-31"})
 passo("consegna", C7, "Hai finito: avvisa il docente", "cruscotto.esercitazioni",
       [("Dove", "Academy → Esercitazioni"), ("Cosa", "segna come svolta l'esercitazione e scrivi una nota: cosa ti ha sorpreso del conguaglio?")])
 
