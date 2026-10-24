@@ -1,0 +1,25 @@
+{% extends "controllo/_base.html" %}
+{% block titolo %}Assenze e straordinari{% endblock %}
+{% block corpo %}
+{% if not an.vuoto %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Tasso di assenteismo</div><div class="val {{ 'text-danger' if t.assenteismo and t.assenteismo * 100 > par.soglia_assenteismo }}">{{ pct(t.assenteismo) }}</div><div class="small text-muted">{{ t.assenteismo_h|num(1) }} ore su {{ t.ore_teoriche|num(0) }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Costo stimato delle assenze</div><div class="val">{{ eh(t.costo_assenze) }}</div><div class="small text-muted">ore di assenteismo × costo orario pagato</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Ore di straordinario</div><div class="val">{{ t.ore_str|num(1) }}</div><div class="small text-muted">{{ pct(t.straordinari) }} delle ore lavorate</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Straordinari sul lordo</div><div class="val {{ 'text-danger' if t.straordinari and t.straordinari * 100 > par.soglia_straordinari }}">{{ pct(t.straordinari_lordo) }}</div><div class="small text-muted">€ {{ t.str_euro|euro }} di maggiorazioni e ore</div></div></div>
+</div>
+<div class="o-list table-responsive"><table class="table table-sm">
+  <thead><tr><th>Dipendente</th><th>Reparto</th><th class="num">Ore teoriche</th>{% for c in codici %}<th class="num" title="{{ nomi.get(c, c) }}">{{ c }}</th>{% endfor %}<th class="num">Assenteismo</th><th class="num">Ore straord.</th><th class="num">% straord.</th></tr></thead>
+  {% for d in an.dipendenti %}<tr><td>{{ d.e.name }}</td><td class="small">{{ d.reparto }}</td><td class="num">{{ d.ore_teoriche|num(1) }}</td>{% for c in codici %}<td class="num">{{ d.ass.get(c, 0)|num(1) if d.ass.get(c) else '' }}</td>{% endfor %}
+    <td class="num {{ 'text-danger fw-semibold' if d.assenteismo and d.assenteismo * 100 > par.soglia_assenteismo }}">{{ pct(d.assenteismo) }}</td><td class="num">{{ d.ore_str|num(1) if d.ore_str else '' }}</td><td class="num {{ 'text-danger fw-semibold' if d.straordinari and d.straordinari * 100 > par.soglia_straordinari }}">{{ pct(d.straordinari) if d.ore_str else '' }}</td></tr>{% endfor %}
+</table></div>
+<p class="small text-muted">Legenda: {% for c in codici %}<b>{{ c }}</b> {{ nomi.get(c, c) }}{{ ' · ' if not loop.last }}{% endfor %}. Nell'assenteismo non entrano ferie, permessi retribuiti (ROL) e festività: sono assenze «fisiologiche», già nel costo del lavoro.</p>
+<form method="post" action="{{ url_for('controllo.parametri') }}" class="card card-body no-print" style="max-width:640px">{{ csrf() }}
+  <input type="hidden" name="anno" value="{{ anno }}"><input type="hidden" name="da" value="{{ da }}"><input type="hidden" name="a" value="{{ a }}"><input type="hidden" name="torna" value="assenze">
+  <div class="fw-semibold mb-2">Soglie di allarme</div>
+  <div class="row g-2"><div class="col"><label class="small">Assenteismo oltre (%)</label><input name="soglia_assenteismo" value="{{ par.soglia_assenteismo|inval }}" class="form-control form-control-sm"></div>
+    <div class="col"><label class="small">Straordinari oltre (% ore lavorate)</label><input name="soglia_straordinari" value="{{ par.soglia_straordinari|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-auto d-flex align-items-end"><button class="btn btn-sm btn-primary">Salva</button></div></div>
+</form>
+{% endif %}
+{% endblock %}

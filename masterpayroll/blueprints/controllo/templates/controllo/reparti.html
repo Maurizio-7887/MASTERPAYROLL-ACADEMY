@@ -1,0 +1,23 @@
+{% extends "controllo/_base.html" %}
+{% block titolo %}Reparti e costo orario{% endblock %}
+{% block corpo %}
+{% if not an.vuoto %}
+{% set mx = (an.reparti|map(attribute='costo')|max) or 1 %}
+{% set mxh = (an.reparti|selectattr('costo_orario_effettivo')|map(attribute='costo_orario_effettivo')|list|max) if an.reparti|selectattr('costo_orario_effettivo')|list else 1 %}
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Dove va il costo del personale</div><div class="card-body">
+    {% for r in an.reparti %}<div class="mb-2"><div class="d-flex justify-content-between small"><span>{{ r.reparto }} <span class="text-muted">· {{ r.fte|num(2) }} FTE</span></span><span>€ {{ r.costo|euro(0) }} · {{ pct(r.costo / t.costo if t.costo else none) }}</span></div>
+      <div class="progress" style="height:10px"><div class="progress-bar" style="width:{{ (r.costo / mx * 100)|round(1) }}%"></div></div></div>{% endfor %}
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Costo orario effettivo per reparto</div><div class="card-body">
+    {% for r in an.reparti|sort(attribute='costo_orario_effettivo', reverse=True) %}{% if r.costo_orario_effettivo %}<div class="mb-2"><div class="d-flex justify-content-between small"><span>{{ r.reparto }}</span><span class="fw-semibold">€ {{ r.costo_orario_effettivo|euro }}/h</span></div>
+      <div class="progress" style="height:10px"><div class="progress-bar bg-warning" style="width:{{ (r.costo_orario_effettivo / mxh * 100)|round(1) }}%"></div></div></div>{% endif %}{% endfor %}
+  </div></div></div>
+</div>
+<div class="o-list table-responsive mt-3"><table class="table table-sm">
+  <thead><tr><th>Reparto</th><th class="num">Dipendenti</th><th class="num">FTE</th><th class="num">Costo</th><th class="num">Quota</th><th class="num">Ore lavorate</th><th class="num">€/h pagata</th><th class="num">€/h effettiva</th><th class="num">Costo mensile per FTE</th><th class="num">Straordinari</th></tr></thead>
+  {% for r in an.reparti %}<tr><td>{{ r.reparto }}</td><td class="num">{{ r.dipendenti }}</td><td class="num">{{ r.fte|num(2) }}</td><td class="num">{{ r.costo|euro }}</td><td class="num">{{ pct(r.costo / t.costo if t.costo else none) }}</td><td class="num">{{ r.ore_lavorate_tot|num(1) }}</td><td class="num">{{ r.costo_orario_pagato|euro if r.costo_orario_pagato }}</td><td class="num fw-semibold">{{ r.costo_orario_effettivo|euro if r.costo_orario_effettivo }}</td><td class="num">{{ r.costo_mensile_fte|euro if r.costo_mensile_fte }}</td><td class="num">{{ pct(r.straordinari) }}</td></tr>{% endfor %}
+</table></div>
+<div class="alert alert-light border small mt-3 mb-0"><b>Dal costo orario del personale alla tariffa del reparto.</b> Il costo orario effettivo copre solo le persone. La tariffa da usare nei preventivi aggiunge le macchine, l'energia, gli spazi e la quota di costi generali del reparto, e si calcola sulle ore <i>vendibili</i>, non su quelle presenti. Nei reparti produttivi confrontalo con il costo orario macchina; negli uffici (Amministrazione, Commerciale, Direzione) è un costo di struttura da coprire con il margine.</div>
+{% endif %}
+{% endblock %}

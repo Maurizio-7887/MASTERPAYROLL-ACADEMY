@@ -428,6 +428,19 @@ ESERCITAZIONI = [
      "straordinari, trasferte e premio, F24, contabilizzazione e Libro unico; novembre e la cessazione di Esposito con il "
      "TFR; tredicesima e conguaglio di dicembre; Certificazione Unica. Alla fine scrivi che cosa ti ha sorpreso del conguaglio.",
      "medio"),
+    ("Controllo: il costo orario vero",
+     "Controllo → Cruscotto del costo del personale, settembre 2026. Per Bianchi e per Verdi confronta la paga oraria del "
+     "contratto (Contratti), il costo orario pagato e il costo orario effettivo. Perché Verdi costa di più all'ora lavorata "
+     "pur avendo un livello più basso? Quale dei tre numeri useresti in un preventivo, e perché?", "medio"),
+    ("Controllo: budget del personale e scostamenti",
+     "Controllo → Budget del personale: premi «Proponi dalla media del periodo» su settembre, poi porta il costo mensile "
+     "del reparto Saldatura a 5.900 € e le ore a 360. Salva e spiega lo scostamento del reparto: quanto dipende dalle ore "
+     "(effetto ore) e quanto dal costo di ogni ora (effetto costo orario)? Dopo aver confermato le buste di ottobre, "
+     "analizza settembre–ottobre e rifai il commento.", "avanzato"),
+    ("Controllo: premio di risultato e turnover",
+     "Controllo → Premio di risultato: con premio massimo 1.200 € e obiettivo aziendale all'80%, chi prende il premio pieno "
+     "e perché? Porta la soglia di assenteismo al 2%: cosa cambia? Poi in Turnover e formazione stima quanto costerebbe "
+     "sostituire Esposito (cessazione di novembre nell'esercizio passo passo) e confrontalo con il suo TFR.", "avanzato"),
     ("Verifica critica",
      "Le aliquote e i parametri sono didattici. Scegli 3 valori (aliquota INPS, scaglioni IRPEF, massimale 1ª fascia), "
      "cercali su fonti ufficiali (INPS, Agenzia delle Entrate, Gazzetta Ufficiale), correggili e misura l'effetto.",

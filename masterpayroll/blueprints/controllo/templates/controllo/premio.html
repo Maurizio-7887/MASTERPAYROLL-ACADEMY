@@ -1,0 +1,34 @@
+{% extends "controllo/_base.html" %}
+{% block titolo %}Premio di risultato legato ai KPI{% endblock %}
+{% block corpo %}
+<div class="alert alert-light border small">Simulazione di un premio con tre quote: <b>presenza</b> ({{ par.premio_peso_presenza|num }}%, piena se l'assenteismo individuale è entro il {{ par.soglia_assenteismo|num }}%, a zero al doppio), <b>organizzazione del lavoro</b> ({{ par.premio_peso_straordinari|num }}%, piena se gli straordinari restano entro il {{ par.soglia_straordinari|num }}% delle ore) e <b>obiettivo aziendale</b> ({{ par.premio_peso_aziendale|num }}%, uguale per tutti: margine, scarti, consegne puntuali…, raggiunto al {{ par.premio_obiettivo_aziendale|num }}%). Il premio si riproporziona all'FTE.
+Il costo per l'azienda si stima con il rapporto costo/lordo di ciascun dipendente. <b>Le regole fiscali e contributive dei premi di risultato (accordo aziendale o territoriale depositato, obiettivi incrementali misurabili, limiti di importo e di reddito) vanno verificate con il consulente del lavoro</b>: aliquota e limite qui sotto sono parametri modificabili.</div>
+{% if not an.vuoto %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Premi lordi</div><div class="val">{{ eh(tot.premio) }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Costo per l'azienda</div><div class="val">{{ eh(tot.costo_azienda) }}</div><div class="small text-muted">{{ pct(tot.costo_su_personale) }} del costo annuo del personale (€ {{ tot.costo_annuo_stimato|euro(0) }}, stimato sui mesi analizzati)</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Imposta sostitutiva stimata</div><div class="val">{{ eh(tot.imposta) }}</div><div class="small text-muted">aliquota {{ par.premio_aliquota_sostitutiva|num }}%</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Obiettivo aziendale</div><div class="val">{{ par.premio_obiettivo_aziendale|num }}%</div></div></div>
+</div>
+<div class="o-list table-responsive"><table class="table table-sm">
+  <thead><tr><th>Dipendente</th><th>Reparto</th><th class="num">FTE</th><th class="num">Quota presenza</th><th class="num">Quota straordinari</th><th class="num">Raggiunto</th><th class="num">Premio lordo</th><th class="num">Costo azienda</th></tr></thead>
+  {% for r in righe %}<tr><td>{{ r.e.name }}</td><td class="small">{{ r.reparto }}</td><td class="num">{{ r.fte|num(2) }}</td><td class="num">{{ pct(r.q_pres, 0) }}</td><td class="num">{{ pct(r.q_str, 0) }}</td><td class="num fw-semibold">{{ pct(r.raggiunto, 0) }}</td><td class="num">{{ r.premio|euro }}</td><td class="num">{{ r.costo_azienda|euro }}</td></tr>{% endfor %}
+  <tfoot><tr class="fw-semibold"><td colspan="6">Totale</td><td class="num">{{ tot.premio|euro }}</td><td class="num">{{ tot.costo_azienda|euro }}</td></tr></tfoot>
+</table></div>{% endif %}
+<form method="post" action="{{ url_for('controllo.parametri') }}" class="card card-body mt-3 no-print">{{ csrf() }}
+  <input type="hidden" name="anno" value="{{ anno }}"><input type="hidden" name="da" value="{{ da }}"><input type="hidden" name="a" value="{{ a }}"><input type="hidden" name="torna" value="premio_risultato">
+  <div class="fw-semibold mb-2">Regole del premio</div>
+  <div class="row g-2">
+    <div class="col-6 col-md-3"><label class="small">Premio massimo per FTE (€)</label><input name="premio_massimo" value="{{ par.premio_massimo|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Peso presenza (%)</label><input name="premio_peso_presenza" value="{{ par.premio_peso_presenza|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Peso straordinari (%)</label><input name="premio_peso_straordinari" value="{{ par.premio_peso_straordinari|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Peso obiettivo aziendale (%)</label><input name="premio_peso_aziendale" value="{{ par.premio_peso_aziendale|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Obiettivo aziendale raggiunto (%)</label><input name="premio_obiettivo_aziendale" value="{{ par.premio_obiettivo_aziendale|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Soglia assenteismo (%)</label><input name="soglia_assenteismo" value="{{ par.soglia_assenteismo|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Aliquota sostitutiva (%)</label><input name="premio_aliquota_sostitutiva" value="{{ par.premio_aliquota_sostitutiva|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="small">Limite agevolato per dipendente (€)</label><input name="premio_limite_detassazione" value="{{ par.premio_limite_detassazione|inval }}" class="form-control form-control-sm"></div>
+  </div>
+  <div class="mt-2"><button class="btn btn-sm btn-primary">Ricalcola il premio</button>
+    {% set somma = par.premio_peso_presenza + par.premio_peso_straordinari + par.premio_peso_aziendale %}{% if (somma - 100)|abs > 0.01 %}<span class="small text-danger ms-2">I pesi sommano a {{ somma|num }}%: dovrebbero fare 100%.</span>{% endif %}</div>
+</form>
+{% endblock %}

@@ -75,6 +75,18 @@
           </ul>
         </li>
         <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Controllo</a>
+          <ul class="dropdown-menu">
+            <li><h6 class="dropdown-header">Controllo del costo del personale</h6></li>
+            <li><a class="dropdown-item" href="{{ url_for('controllo.cruscotto') }}">Cruscotto del costo del personale</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('controllo.reparti') }}">Reparti e costo orario</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('controllo.assenze') }}">Assenze e straordinari</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('controllo.budget') }}">Budget del personale</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('controllo.turnover') }}">Turnover e formazione</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('controllo.premio_risultato') }}">Premio di risultato</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Academy</a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('esercizio.panoramica') }}"><i class="bi bi-signpost-split"></i> Esercizio passo passo</a></li>

@@ -79,6 +79,23 @@ un HTML per ogni pagina in `templates/<attività>/`: `accesso`, `cruscotto`, `di
 * **Scadenzario del personale**: visite, corsi da rinnovare e documenti scaduti o in scadenza (preavviso nelle Tabelle),
   anche nel Cruscotto.
 
+## Controllo del costo del personale (menu Controllo)
+
+I numeri del controller sulle buste **completate** del periodo scelto (`masterpayroll/controllo.py`, blueprint `controllo`):
+
+* **Cruscotto**: costo aziendale (regola COSTO), FTE, costo mensile per FTE, incidenza degli oneri sul lordo, ore pagate e ore
+  lavorate davvero, **costo orario pagato ed effettivo** per dipendente, esportazione CSV.
+* **Reparti e costo orario**: quota del costo per reparto e costo orario effettivo, base della tariffa di reparto.
+* **Assenze e straordinari**: assenteismo (senza ferie, ROL e festività), costo stimato delle assenze, ore e incidenza degli
+  straordinari, soglie di allarme.
+* **Budget del personale**: budget mensile per reparto (anche proposto dalla media) e scostamento diviso in **effetto ore** ed
+  **effetto costo orario**.
+* **Turnover e formazione**: cessazioni dell'anno, turnover, costo stimato di un'uscita, costo e ore di formazione per FTE.
+* **Premio di risultato**: simulazione con quota presenza, quota straordinari e obiettivo aziendale; costo per l'azienda.
+  Aliquota sostitutiva e limite sono parametri da verificare con il consulente del lavoro.
+
+Tre esercitazioni dedicate in Academy → Esercitazioni.
+
 ## Esercizio passo passo
 
 Su ogni pagina c'è la finestra a destra **Esercizio passo passo** (ottobre–dicembre 2026, 35 passi): per ogni azione
@@ -98,7 +115,7 @@ ripristino, report CSV. Le formule scritte dagli allievi passano da un valutator
 ```bash
 pip install -r requirements.txt
 ADMIN_PASSWORD=una-password python app.py      # http://localhost:5000  utente: docente
-python -m pytest                               # 35 test
+python -m pytest                               # 44 test
 ```
 
 ## Deploy su Railway
