@@ -9,9 +9,9 @@ from datetime import date
 
 from flask import Response, flash, g, redirect, render_template, request, url_for
 
-from ...controllo import (MESI_BREVI, PARAMETRI_DEFAULT, analisi, budget_da_consuntivo, confronto_budget,
+from ...controllo import (FISIOLOGICHE, MESI_BREVI, PARAMETRI_DEFAULT, analisi, budget_da_consuntivo, confronto_budget,
                           periodi_disponibili, premio, tipi_assenza, turnover_formazione)
-from ...models import ControlloPersonale, db
+from ...models import ControlloPersonale, LeaveType, db
 from ..comune import area, parse_float
 
 bp = area("controllo")
@@ -130,17 +130,25 @@ def parametri():
 
 @bp.route("/controllo/export.csv")
 def export_csv():
+    """Una riga per dipendente; le colonne coincidono con l'importazione dello strumento online
+    «Costo del personale e produttività» di Master Consulting."""
     c = _ctx("cruscotto")
+    non_retribuite = {t.code for t in LeaveType.query.filter_by(workspace_id=g.ws.id, unpaid=True)}
     out = io.StringIO()
     w = csv.writer(out, delimiter=";")
-    w.writerow(["matricola", "dipendente", "reparto", "fte", "lordo", "contributi_azienda", "tfr", "costo_aziendale",
-                "ore_pagate", "ore_lavorate", "ore_straordinario", "costo_orario_pagato", "costo_orario_effettivo",
-                "assenteismo_pct"])
+    w.writerow(["matricola", "dipendente", "reparto", "fte", "lordo", "contributi", "tfr", "altri", "costo_aziendale",
+                "ore_teoriche", "ore_ferie_permessi", "ore_assenze", "ore_non_retribuite", "ore_straordinario",
+                "ore_pagate", "ore_lavorate", "costo_orario_pagato", "costo_orario_effettivo", "assenteismo_pct", "mesi"])
     f = lambda x, d=2: ("" if x is None else f"{x:.{d}f}".replace(".", ","))  # noqa: E731
     for d in c["an"]["dipendenti"]:
+        fisio = sum(h for k, h in d["ass"].items() if k in FISIOLOGICHE)
+        assenze = sum(h for k, h in d["ass"].items() if k not in FISIOLOGICHE)
+        nonret = sum(h for k, h in d["ass"].items() if k in non_retribuite)
+        altri = d["costo"] - d["lordo"] - d["oneri"] - d["tfr"]
         w.writerow([d["e"].registration_number, d["e"].name, d["reparto"], f(d["fte"]), f(d["lordo"]), f(d["oneri"]),
-                    f(d["tfr"]), f(d["costo"]), f(d["ore_pagate"], 1), f(d["ore_lavorate"], 1), f(d["ore_str"], 1),
+                    f(d["tfr"]), f(altri), f(d["costo"]), f(d["ore_teoriche"], 1), f(fisio, 1), f(assenze, 1), f(nonret, 1),
+                    f(d["ore_str"], 1), f(d["ore_pagate"], 1), f(d["ore_lavorate_tot"], 1),
                     f(d["costo_orario_pagato"]), f(d["costo_orario_effettivo"]),
-                    f(d["assenteismo"] * 100 if d["assenteismo"] is not None else None, 1)])
-    return Response("﻿" + out.getvalue(), mimetype="text/csv",
+                    f(d["assenteismo"] * 100 if d["assenteismo"] is not None else None, 1), len(c["an"]["mesi"])])
+    return Response("\ufeff" + out.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment; filename=costo_personale_{c['anno']}_{c['da']:02d}-{c['a']:02d}.csv"})
