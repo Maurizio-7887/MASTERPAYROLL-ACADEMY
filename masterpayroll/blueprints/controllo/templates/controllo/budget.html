@@ -1,0 +1,27 @@
+{% extends "controllo/_base.html" %}
+{% block titolo %}Budget del personale {{ anno }}{% endblock %}
+{% block corpo %}
+<div class="alert alert-light border small">Il budget è <b>mensile per reparto</b>: FTE previsti, ore lavorate e costo aziendale di un mese. Per il periodo analizzato ({{ an.mesi|length }} {{ 'mese' if an.mesi|length == 1 else 'mesi' }}) si moltiplica per il numero dei mesi. Lo scostamento si divide in due effetti:
+<b>effetto ore</b> = (ore effettive − ore budget) × costo orario budget, cioè più o meno lavoro del previsto; <b>effetto costo orario</b> = (costo orario effettivo − costo orario budget) × ore effettive, cioè ogni ora è costata più o meno del previsto (aumenti, straordinari, assenze pagate, mix di livelli).</div>
+{% if righe %}
+<div class="o-list table-responsive mb-3"><table class="table table-sm">
+  <thead><tr><th>Reparto</th><th class="num">FTE bud.</th><th class="num">FTE eff.</th><th class="num">Costo budget</th><th class="num">Costo effettivo</th><th class="num">Scostamento</th><th class="num">%</th><th class="num">Effetto ore</th><th class="num">Effetto costo orario</th><th class="num">€/h bud.</th><th class="num">€/h eff.</th></tr></thead>
+  {% for r in righe %}<tr><td>{{ r.reparto }}</td><td class="num">{{ r.fte_b|num(2) }}</td><td class="num">{{ r.fte_e|num(2) }}</td><td class="num">{{ r.costo_b|euro }}</td><td class="num">{{ r.costo_e|euro }}</td>
+    <td class="num fw-semibold {{ 'text-danger' if r.scost > 0.5 else 'text-success' if r.scost < -0.5 }}">{{ r.scost|euro }}</td><td class="num">{{ pct(r.scost_pct) }}</td>
+    <td class="num">{{ r.eff_ore|euro }}</td><td class="num">{{ r.eff_costo|euro }}</td><td class="num">{{ r.co_b|euro if r.co_b }}</td><td class="num">{{ r.co_e|euro if r.co_e }}</td></tr>{% endfor %}
+  <tfoot><tr class="fw-semibold"><td>Totale</td><td class="num">{{ tot.fte_b|num(2) }}</td><td class="num">{{ tot.fte_e|num(2) }}</td><td class="num">{{ tot.costo_b|euro }}</td><td class="num">{{ tot.costo_e|euro }}</td><td class="num {{ 'text-danger' if tot.scost > 0.5 else 'text-success' if tot.scost < -0.5 }}">{{ tot.scost|euro }}</td><td class="num">{{ pct(tot.scost_pct) }}</td><td class="num">{{ tot.eff_ore|euro }}</td><td class="num">{{ tot.eff_costo|euro }}</td><td></td><td></td></tr></tfoot>
+</table></div>{% endif %}
+<form method="post" class="card card-body mb-3 no-print">{{ csrf() }}
+  <div class="d-flex justify-content-between align-items-center mb-2"><div class="fw-semibold">Budget mensile per reparto</div>
+    <button name="azione" value="proponi" class="btn btn-sm btn-outline-primary" {{ 'disabled' if an.vuoto }}>Proponi dalla media del periodo</button></div>
+  <div class="table-responsive"><table class="table table-sm mb-2"><thead><tr><th>Reparto</th><th class="num" style="width:120px">FTE</th><th class="num" style="width:160px">Ore lavorate al mese</th><th class="num" style="width:180px">Costo aziendale al mese (€)</th></tr></thead>
+  {% set reps = bud.keys()|list %}{% for r in an.reparti %}{% if r.reparto not in reps %}{% set _ = reps.append(r.reparto) %}{% endif %}{% endfor %}
+  {% for rep in reps %}{% set b = bud.get(rep, {}) %}<tr><td><input name="r{{ loop.index0 }}_reparto" value="{{ rep }}" class="form-control form-control-sm"></td>
+    <td><input name="r{{ loop.index0 }}_fte" value="{{ b.fte|inval if b.fte }}" class="form-control form-control-sm text-end"></td>
+    <td><input name="r{{ loop.index0 }}_ore" value="{{ b.ore_mese|inval if b.ore_mese }}" class="form-control form-control-sm text-end"></td>
+    <td><input name="r{{ loop.index0 }}_costo" value="{{ b.costo_mese|inval if b.costo_mese }}" class="form-control form-control-sm text-end"></td></tr>{% endfor %}
+  <tr><td><input name="r{{ reps|length }}_reparto" placeholder="Nuovo reparto" class="form-control form-control-sm"></td><td><input name="r{{ reps|length }}_fte" class="form-control form-control-sm text-end"></td><td><input name="r{{ reps|length }}_ore" class="form-control form-control-sm text-end"></td><td><input name="r{{ reps|length }}_costo" class="form-control form-control-sm text-end"></td></tr>
+  </table></div><input type="hidden" name="n" value="{{ reps|length }}">
+  <div><button name="azione" value="salva" class="btn btn-sm btn-primary">Salva il budget</button></div>
+</form>
+{% endblock %}

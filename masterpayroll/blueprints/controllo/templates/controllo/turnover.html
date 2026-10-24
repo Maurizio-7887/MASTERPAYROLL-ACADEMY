@@ -1,0 +1,31 @@
+{% extends "controllo/_base.html" %}
+{% block titolo %}Turnover e formazione {{ anno }}{% endblock %}
+{% block corpo %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Uscite nell'anno</div><div class="val">{{ tf.uscite }}</div><div class="small text-muted">turnover {{ pct(tf.turnover) }} su {{ tf.organico|num(2) }} FTE</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Costo di un'uscita</div><div class="val">{{ eh(tf.costo_uscita) }}</div><div class="small text-muted">stima con i parametri qui sotto</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Formazione</div><div class="val">{{ eh(tf.costo_formazione) }}</div><div class="small text-muted">{{ tf.ore_formazione|num(1) }} ore-persona</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="lbl">Formazione per FTE</div><div class="val">{{ eh(tf.formazione_fte) }}</div><div class="small text-muted">{{ tf.ore_formazione_fte|num(1) }} ore per FTE</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Cessazioni {{ anno }}</div>
+    <table class="table table-sm mb-0">{% for c in tf.cessazioni %}<tr><td>{{ c.employee.name }}</td><td class="small">{{ c.employee.department }}</td><td class="small">{{ c.data|data }}</td><td class="small">{{ c.motivo }}</td><td class="num">{{ eh(tf.costo_uscita) }}</td></tr>
+    {% else %}<tr><td class="text-muted small p-3">Nessuna cessazione registrata nell'anno (Dipendenti → Cessazioni e TFR).</td></tr>{% endfor %}
+    {% if tf.uscite %}<tr class="fw-semibold"><td colspan="4">Costo stimato del turnover</td><td class="num">{{ eh(tf.costo_turnover) }}</td></tr>{% endif %}</table>
+    <div class="card-body small text-muted border-top">Il costo di un'uscita non è solo il TFR (che è un debito già maturato): è la ricerca del sostituto, la formazione iniziale e la produttività persa mentre il nuovo arriva a regime: {{ par.turnover_mesi_inserimento|num }} mesi × € {{ tf.costo_mese_medio|euro(0) }} di costo mensile medio × {{ par.turnover_produttivita_persa|num }}%.</div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Corsi di formazione {{ anno }}</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Corso</th><th class="num">Partecipanti</th><th class="num">Ore-persona</th><th class="num">Costo</th><th class="num">Per persona</th></tr></thead>
+    {% for r in tf.corsi %}<tr><td class="small">{{ r.c.titolo }}</td><td class="num">{{ r.partecipanti }}</td><td class="num">{{ r.ore_persona|num(1) }}</td><td class="num">{{ (r.c.costo or 0)|euro }}</td><td class="num">{{ r.costo_persona|euro if r.costo_persona is not none else '–' }}</td></tr>
+    {% else %}<tr><td colspan="5" class="text-muted small p-3">Nessun corso nell'anno (Dipendenti → Corsi di formazione).</td></tr>{% endfor %}</table></div></div>
+</div>
+<form method="post" action="{{ url_for('controllo.parametri') }}" class="card card-body mt-3 no-print">{{ csrf() }}
+  <input type="hidden" name="anno" value="{{ anno }}"><input type="hidden" name="da" value="{{ da }}"><input type="hidden" name="a" value="{{ a }}"><input type="hidden" name="torna" value="turnover">
+  <div class="fw-semibold mb-2">Parametri del costo del turnover</div>
+  <div class="row g-2">
+    <div class="col-6 col-md"><label class="small">Ricerca e selezione (€)</label><input name="turnover_selezione" value="{{ par.turnover_selezione|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md"><label class="small">Formazione iniziale (€)</label><input name="turnover_formazione" value="{{ par.turnover_formazione|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md"><label class="small">Mesi per arrivare a regime</label><input name="turnover_mesi_inserimento" value="{{ par.turnover_mesi_inserimento|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md"><label class="small">Produttività persa (%)</label><input name="turnover_produttivita_persa" value="{{ par.turnover_produttivita_persa|inval }}" class="form-control form-control-sm"></div>
+    <div class="col-auto d-flex align-items-end"><button class="btn btn-sm btn-primary">Ricalcola</button></div></div>
+</form>
+{% endblock %}

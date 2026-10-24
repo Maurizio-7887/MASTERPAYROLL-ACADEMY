@@ -1,4 +1,4 @@
-{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token }}">{% endmacro %}
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ session.get('_csrf', '') }}">{% endmacro %}
 
 {% macro badge(state, labels) %}<span class="badge st-{{ state }}">{{ labels.get(state, state) }}</span>{% endmacro %}
 

@@ -849,7 +849,19 @@ def month_bounds(d):
 
 
 # Tutti i modelli legati a un ambiente, nell'ordine in cui cancellarli.
-WORKSPACE_MODELS = [DocumentoDipendente, CorsoPartecipante, Corso, VisitaMedica, EmployeeCalendar, EsercizioSpunta,Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
+class ControlloPersonale(db.Model):
+    """Controllo del costo del personale: budget per reparto e parametri delle analisi, uno per anno."""
+    __tablename__ = "controllo_personale"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    anno = db.Column(db.Integer, nullable=False)
+    budget = db.Column(db.Text, default="{}")      # JSON {reparto: {fte, ore_mese, costo_mese}}
+    parametri = db.Column(db.Text, default="{}")   # JSON delle soglie e dei parametri (vedi controllo.PARAMETRI_DEFAULT)
+    updated_at = db.Column(db.DateTime, default=now, onupdate=now)
+    __table_args__ = (db.UniqueConstraint("workspace_id", "anno", name="uq_controllo_ws_anno"),)
+
+
+WORKSPACE_MODELS = [ControlloPersonale, DocumentoDipendente, CorsoPartecipante, Corso, VisitaMedica, EmployeeCalendar, EsercizioSpunta,Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
                     Leave, Familiare, Contract, Employee, RuleInput, SalaryRule, PayrollStructure,
                     SalaryRuleCategory, ContributionRegister, Partner, ResourceCalendarLeave,
                     ResourceCalendarAttendance, ResourceCalendar, LeaveType, Livello, Parametro,
