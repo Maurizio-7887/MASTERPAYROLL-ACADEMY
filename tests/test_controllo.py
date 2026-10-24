@@ -49,6 +49,13 @@ def test_pagine_controllo(docente, ws):
     assert "Nessuna busta paga" in docente.get("/controllo?anno=2026&da=1&a=3").get_data(as_text=True)
     csv = docente.get("/controllo/export.csv?anno=2026&da=9&a=9").get_data(as_text=True)
     assert "Verdi" in csv and "costo_orario_effettivo" in csv
+    righe = [r.split(";") for r in csv.lstrip("\ufeff").strip().splitlines()]
+    intest = righe[0]
+    for col in ("dipendente", "reparto", "fte", "lordo", "contributi", "tfr", "altri", "ore_teoriche", "ore_ferie_permessi",
+                "ore_assenze", "ore_non_retribuite", "ore_straordinario"):
+        assert col in intest, col
+    verdi = dict(zip(intest, next(r for r in righe if "Verdi" in r[1])))
+    assert verdi["ore_teoriche"] == "176,0" and verdi["ore_ferie_permessi"] == "16,0" and verdi["ore_non_retribuite"] == "8,0"
     r = docente.post("/controllo/budget?anno=2026&da=9&a=9", data={"azione": "proponi"})
     assert r.status_code == 302
     assert "Saldatura" in docente.get("/controllo/budget?anno=2026&da=9&a=9").get_data(as_text=True)

@@ -18,7 +18,7 @@
     <td class="num {{ 'text-danger fw-semibold' if d.assenteismo and d.assenteismo * 100 > par.soglia_assenteismo }}">{{ pct(d.assenteismo) }}</td></tr>{% endfor %}</tbody>
   <tfoot><tr class="fw-semibold"><td>Totale azienda</td><td></td><td class="num">{{ t.fte|num(2) }}</td><td class="num">{{ t.lordo|euro }}</td><td class="num">{{ t.oneri|euro }}</td><td class="num">{{ t.tfr|euro }}</td><td class="num">{{ t.costo|euro }}</td><td class="num">{{ t.ore_pagate|num(1) }}</td><td class="num">{{ t.ore_lavorate_tot|num(1) }}</td><td class="num">{{ t.costo_orario_pagato|euro if t.costo_orario_pagato }}</td><td class="num">{{ t.costo_orario_effettivo|euro if t.costo_orario_effettivo }}</td><td class="num">{{ pct(t.assenteismo) }}</td></tr></tfoot>
 </table></div>
-<div class="d-flex gap-2 no-print"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('controllo.export_csv', **q) }}"><i class="bi bi-filetype-csv"></i> Esporta CSV</a>
+<div class="d-flex gap-2 no-print"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('controllo.export_csv', **q) }}"><i class="bi bi-filetype-csv"></i> Esporta CSV</a><span class="small text-muted align-self-center">Il CSV si importa così com'è nello strumento online «Costo del personale e produttività».</span>
   <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Stampa</button></div>
 {% if an.per_mese|length > 1 %}
 <h6 class="fw-bold mt-4">Andamento mese per mese</h6>
