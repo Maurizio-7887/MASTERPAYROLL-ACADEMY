@@ -6,7 +6,7 @@ Una cartella per attività: la finestra è in templates/esercizio/_pannello.html
 """
 from datetime import date
 
-from flask import abort, g, redirect, render_template, request, url_for
+from flask import Response, abort, g, redirect, render_template, request, session, url_for
 from flask_login import current_user
 
 from ...models import (Cessazione, Contabilizzazione, Contract, Corso, CorsoPartecipante, Employee, EsercizioSpunta,
@@ -265,12 +265,13 @@ passo("consegna", C7, "Hai finito: avvisa il docente", "cruscotto.esercitazioni"
       [("Dove", "Academy → Esercitazioni"), ("Cosa", "segna come svolta l'esercitazione e scrivi una nota: cosa ti ha sorpreso del conguaglio?")])
 
 
-def stato_passi(ws):
+def stato_passi(ws, codice=CODICE):
     """Stato di ogni passo per l'ambiente: 'auto' fatto dai dati, 'mano' spuntato, '' da fare."""
     _W["ws"] = ws
-    spunte = {s.passo for s in EsercizioSpunta.query.filter_by(workspace_id=ws.id, esercizio=CODICE)}
+    passi = ESERCIZI[codice]["passi"]
+    spunte = {s.passo for s in EsercizioSpunta.query.filter_by(workspace_id=ws.id, esercizio=codice)}
     out = []
-    for p in P:
+    for p in passi:
         if p["check"] is not None:
             try:
                 fatto = bool(p["check"]())
@@ -282,21 +283,30 @@ def stato_passi(ws):
     return out
 
 
+def attivo():
+    """Esercizio scelto nella finestra (per sessione); di default l'esercizio completo."""
+    cod = session.get("esercizio_attivo")
+    return cod if cod in ESERCIZI else DEFAULT
+
+
 @bp.app_context_processor
 def _finestra():
     if not current_user.is_authenticated or getattr(g, "ws", None) is None or request.blueprint in ("accesso", "docente"):
         return {}
-    stati = stato_passi(g.ws)
-    corrente = next((i for i, s in enumerate(stati) if not s), len(P) - 1)
+    cod = attivo()
+    es = ESERCIZI[cod]
+    stati = stato_passi(g.ws, cod)
+    corrente = next((i for i, s in enumerate(stati) if not s), len(es["passi"]) - 1)
     passi = []
-    for p, s in zip(P, stati):
+    for p, s in zip(es["passi"], stati):
         try:
             href = url_for(p["ep"], **p["args"])
         except Exception:
             href = "#"
         passi.append(dict(p, stato=s, href=href, check=p["check"] is not None, qui=request.endpoint == p["ep"]))
-    return {"guida": {"codice": CODICE, "titolo": TITOLO, "passi": passi, "corrente": corrente,
-                      "fatti": sum(1 for s in stati if s), "totale": len(P)}}
+    return {"guida": {"codice": cod, "titolo": es["titolo"], "passi": passi, "corrente": corrente,
+                      "fatti": sum(1 for s in stati if s), "totale": len(passi),
+                      "esercizi": [(k, v["titolo"]) for k, v in ESERCIZI.items()]}}
 
 
 @bp.route("/esercizio")
@@ -308,23 +318,50 @@ def panoramica():
 def spunta():
     if g.ws_altrui:
         abort(403)
+    cod = attivo()
     pid = request.form.get("passo", "")
-    if pid not in {p["id"] for p in P}:
+    if pid not in {p["id"] for p in ESERCIZI[cod]["passi"]}:
         abort(404)
-    rec = EsercizioSpunta.query.filter_by(workspace_id=g.ws.id, esercizio=CODICE, passo=pid).first()
+    rec = EsercizioSpunta.query.filter_by(workspace_id=g.ws.id, esercizio=cod, passo=pid).first()
     if request.form.get("azione") == "annulla":
         if rec:
             db.session.delete(rec)
     elif not rec:
-        db.session.add(EsercizioSpunta(workspace_id=g.ws.id, esercizio=CODICE, passo=pid))
+        db.session.add(EsercizioSpunta(workspace_id=g.ws.id, esercizio=cod, passo=pid))
     db.session.commit()
     return redirect(request.form.get("torna") or request.referrer or url_for("cruscotto.dashboard"))
 
 
-def progresso(ws):
+@bp.route("/esercizio/scegli", methods=["POST"])
+def scegli():
+    cod = request.form.get("esercizio", "")
+    if cod not in ESERCIZI:
+        abort(404)
+    session["esercizio_attivo"] = cod
+    return redirect(request.form.get("torna") or request.referrer or url_for("esercizio.panoramica"))
+
+
+@bp.route("/esercizio/<codice>/documento.pdf")
+def documento(codice):
+    if codice not in ESERCIZI:
+        abort(404)
+    from .documento import pdf_esercizio
+    dati = pdf_esercizio(ESERCIZI[codice], g.ws, url_for)
+    return Response(dati, mimetype="application/pdf",
+                    headers={"Content-Disposition": f"attachment; filename=esercizio_{codice}.pdf"})
+
+
+def progresso(ws, codice=CODICE):
     """Per l'area docente: passi fatti su totali."""
-    stati = stato_passi(ws)
-    return sum(1 for s in stati if s), len(P)
+    stati = stato_passi(ws, codice)
+    return sum(1 for s in stati if s), len(ESERCIZI[codice]["passi"])
 
 
-__all__ = ["bp", "P", "stato_passi", "progresso"]
+# Gli esercizi disponibili nella finestra: stessa struttura dei passi, stesso documento scaricabile.
+from . import completo  # noqa: E402  (usa gli aiuti definiti sopra)
+
+ESERCIZI = {completo.CODICE: {"titolo": completo.TITOLO, "passi": completo.P},
+            CODICE: {"titolo": TITOLO, "passi": P}}
+DEFAULT = completo.CODICE
+
+__all__ = ["bp", "P", "ESERCIZI", "stato_passi", "progresso", "attivo"]

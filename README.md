@@ -127,6 +127,12 @@ Piano e decisioni in `PIANO_AI_PAGHE.md`.
 
 ## Esercizio passo passo
 
+**Due esercizi nella stessa finestra** (scelta in alto nella finestra, ricordata per sessione): l'esercizio completo
+«tutto il programma, AI Lab compreso» (40 passi, `blueprints/esercizio/completo.py`, predefinito) e quello storico
+ottobre-dicembre (35 passi). Ogni passo comincia dal comando di menu; il pulsante PDF della finestra (o
+`/esercizio/<codice>/documento.pdf`) scarica il documento con gli stessi passi, generato dalla stessa lista
+(`blueprints/esercizio/documento.py`, font DejaVu inclusi in `masterpayroll/fonts/`).
+
 Su ogni pagina c'è la finestra a destra **Esercizio passo passo** (ottobre–dicembre 2026, 35 passi): per ogni azione
 indica la pagina («Apri la pagina»), i dati da scrivere e il risultato atteso. Le operazioni si spuntano da sole
 controllando i dati dell'allievo; le letture si confermano con «Fatto». Panoramica in Academy → Esercizio passo passo;
@@ -144,7 +150,7 @@ ripristino, report CSV. Le formule scritte dagli allievi passano da un valutator
 ```bash
 pip install -r requirements.txt
 ADMIN_PASSWORD=una-password python app.py      # http://localhost:5000  utente: docente
-python -m pytest                               # 52 test
+python -m pytest                               # 54 test
 ```
 
 ## Deploy su Railway

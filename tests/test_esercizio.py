@@ -39,6 +39,8 @@ def test_esercizio_ottobre_dicembre(docente, app):
     h = docente.get("/").get_data(as_text=True)
     assert 'id="guida"' in h and "Esercizio passo passo" in h and "Parti da un ambiente pulito" in h
     assert all(not s for s in _stati(ws).values())
+    docente.post("/esercizio/scegli", data={"esercizio": "ottobre-dicembre-2026"})   # nella finestra si sceglie l'esercizio
+    assert "Paghe da ottobre a dicembre 2026" in docente.get("/").get_data(as_text=True)
     for pid in ("pulito", "leggi-settembre"):
         docente.post("/esercizio/spunta", data={"passo": pid, "azione": "fatto"})
     assert _stati(ws)["pulito"] == "mano"

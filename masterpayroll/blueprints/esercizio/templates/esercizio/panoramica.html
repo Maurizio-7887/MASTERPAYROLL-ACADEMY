@@ -7,12 +7,17 @@
   <h5 class="page-title">{{ guida.titolo }}</h5>
   <p class="mb-1">La finestra a destra indica <strong>un'azione alla volta</strong>: dove andare (pulsante «Apri la pagina»), cosa scrivere e cosa deve succedere.
   Le operazioni si spuntano da sole quando i tuoi dati sono giusti; le letture si confermano con «Fatto».</p>
-  <p class="small text-muted mb-0">Fatti {{ guida.fatti }} passi su {{ guida.totale }}. Puoi rifare tutto da capo: Cruscotto → Ripristina l'ambiente.</p>
+  <p class="small text-muted mb-2">Fatti {{ guida.fatti }} passi su {{ guida.totale }}. Puoi rifare tutto da capo: Cruscotto → Ripristina l'ambiente.</p>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <a class="btn btn-sm btn-primary" href="{{ url_for('esercizio.documento', codice=guida.codice) }}"><i class="bi bi-file-earmark-pdf"></i> Scarica il documento PDF di questo esercizio</a>
+    <form method="post" action="{{ url_for('esercizio.scegli') }}" class="d-flex gap-1"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <select name="esercizio" class="form-select form-select-sm" onchange="this.form.submit()">{% for k, t in guida.esercizi %}<option value="{{ k }}" {{ 'selected' if k == guida.codice }}>{{ t }}</option>{% endfor %}</select></form>
+  </div>
 </div>
 <div class="o-list table-responsive"><table class="table table-sm align-middle">
-  <thead><tr><th></th><th>#</th><th>Capitolo</th><th>Azione</th><th>Tipo</th></tr></thead>
+  <thead><tr><th></th><th>#</th><th>Capitolo</th><th>Azione</th><th>Menu</th><th>Tipo</th></tr></thead>
   <tbody>{% for p in guida.passi %}<tr class="click" data-href="{{ p.href }}">
     <td>{% if p.stato %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-circle text-muted"></i>{% endif %}</td>
-    <td>{{ loop.index }}</td><td class="small text-muted">{{ p.cap }}</td><td>{{ p.titolo }}</td><td class="small">{{ 'operazione' if p.check else 'lettura' }}</td></tr>{% endfor %}</tbody>
+    <td>{{ loop.index }}</td><td class="small text-muted">{{ p.cap }}</td><td>{{ p.titolo }}</td><td class="small text-muted">{{ p.campi[0][1] if p.campi and p.campi[0][0] == 'Menu' }}</td><td class="small">{{ 'operazione' if p.check else 'lettura' }}</td></tr>{% endfor %}</tbody>
 </table></div>
 {% endblock %}

@@ -7,6 +7,13 @@
   </div>
   <div class="guida-barra"><div style="width:{{ (100 * guida.fatti / guida.totale)|round|int }}%"></div></div>
   <div class="guida-corpo">
+    <form method="post" action="{{ url_for('esercizio.scegli') }}" class="d-flex gap-1 mb-2">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="torna" value="{{ request.full_path }}">
+      <select name="esercizio" class="form-select form-select-sm" aria-label="Scegli l'esercizio" onchange="this.form.submit()">
+        {% for k, t in guida.esercizi %}<option value="{{ k }}" {{ 'selected' if k == guida.codice }}>{{ t }}</option>{% endfor %}
+      </select>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('esercizio.documento', codice=guida.codice) }}" title="Scarica il documento PDF con questi stessi passi"><i class="bi bi-file-earmark-pdf"></i></a>
+    </form>
     <select class="form-select form-select-sm guida-scelta" aria-label="Scegli il passo">
       {% for p in guida.passi %}<option value="{{ loop.index0 }}">{{ '✓' if p.stato else '○' }} {{ loop.index }}. {{ p.titolo }}</option>{% endfor %}
     </select>
