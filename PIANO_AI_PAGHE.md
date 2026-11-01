@@ -80,9 +80,14 @@ Contenuti del modulo L6 (da verificare alla stesura):
 7. L4 Sportello HR.
 8. L6, quiz, esercitazioni, esercizio passo passo, area docente, test, README, scheda sul sito.
 
-## 6. Punti da decidere
+## 6. Decisioni (1/11/2026)
 
-- Modello linguistico: nessuno (solo motore locale), Claude o altro; chi paga la chiave in aula.
-- Corso separato «AI per le paghe» o estensione del corso MasterPayroll esistente (stesso ambiente, stessi allievi).
-- Tabelle del seed: allinearle a ccnl-engine o lasciarle indicative.
-- Altri CCNL oltre al metalmeccanico per L1 e L5 (commercio Confcommercio, logistica Confetra sono già nelle schede).
+- **Estensione di MasterPayroll**: nuovo menu «AI Lab» nello stesso ambiente, stessi allievi, stessa Ferro & Transenne.
+- **Modello linguistico: facoltativo, spento di default.** Tutto funziona con il motore locale. Variabile `LLM_API_KEY`
+  (più `LLM_PROVIDER`): se il docente la imposta su Railway si attiva la risposta in linguaggio naturale; tetto mensile di
+  chiamate per allievo e registro delle chiamate. La chiave e il costo sono del docente, gli allievi non ne hanno bisogno.
+- **Minimi CCNL: si lasciano quelli indicativi del seed** e si aggiunge la tabella dei minimi 2026 di ccnl-engine come
+  confronto; l'esercizio di L5 chiede di spiegare le differenze.
+- **Contratti**: metalmeccanico Federmeccanica, commercio Confcommercio, logistica e trasporto Confetra (schede già in
+  ccnl-engine). Per L5 e per gli esempi di commercio e logistica si aggiungono due aziende «ospiti» con pochi dipendenti
+  nello stesso ambiente, senza toccare Ferro & Transenne.
