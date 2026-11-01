@@ -1,5 +1,8 @@
 # Piano · MasterPayroll «AI per le paghe e le risorse umane»
 
+**Stato (1/11/2026 sera)**: realizzati i sei laboratori del menu AI Lab (vedi README, sezione AI Lab), 8 test nuovi.
+Da fare: domande dell'esame finale sui laboratori, scheda del corso sul sito, prezzo. Fatto: colonna «AI Lab» nell'area docente.
+
 Bozza dell'1/11/2026, da completare in sessione. Base di partenza: MasterPayroll Academy (replica Flask di OCA/payroll di Odoo
 con localizzazione italiana, Ferro & Transenne Srl, 8 dipendenti, CCNL metalmeccanico, controllo del costo del personale).
 

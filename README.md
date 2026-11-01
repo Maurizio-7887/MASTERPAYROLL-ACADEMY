@@ -96,6 +96,35 @@ I numeri del controller sulle buste **completate** del periodo scelto (`masterpa
 
 Tre esercitazioni dedicate in Academy → Esercitazioni.
 
+## AI Lab: l'intelligenza artificiale attorno al cedolino (novembre 2026)
+
+Menu **AI Lab**, blueprint `ai` (`masterpayroll/blueprints/ai/`), logica in `masterpayroll/ai/`. Sei laboratori sulla stessa
+Ferro & Transenne, ognuno con lezione ed esercitazione corretta in automatico (stato nel modello `AiStato`):
+
+1. **Assistente CCNL** (`ai/ccnl.py`): schede in italiano costruite dalle regole di ccnl-engine per metalmeccanico
+   Federmeccanica, commercio Confcommercio e logistica Confetra, con valore, articolo, pagina, citazione e stato di verifica;
+   ricerca BM25 locale. Esercitazione: 10 domande a scelta con il valore letto dalla fonte.
+2. **Presenze e note spese** (`ai/presenze.py`): quattro file sporchi di novembre 2026 (Excel dei capi reparto, CSV del
+   badge, PDF delle note spese, foto di uno scontrino), lettura, errori da risolvere a mano, apporti STR25/STR50/TRASF/RIMBORSI
+   e assenze scritti nelle buste del gruppo «Novembre 2026» e ricalcolati.
+3. **Anomalie prima della chiusura** (`ai/storico.py`, `ai/anomalie.py`): 24 mesi di storico con 7 anomalie nascoste; regole,
+   z-score robusto, Isolation Forest (scikit-learn), scomposizione del costo di reparto (effetto ore, effetto costo orario,
+   cause per dipendente); CSV per Python o Colab; soluzione visibile al docente.
+4. **Sportello HR** (`ai/sportello.py`): risponde ai dipendenti con i loro dati (ferie e permessi, buste, CU) e le regole
+   aziendali, rifiuta le domande sui colleghi, inoltra quello che non sa, registra tutto; collaudo con 10 domande tipo.
+5. **Seconda opinione** (`ai/ccnl.py`): la busta di novembre 2026 di ogni dipendente ricalcolata con ccnl-engine e confrontata
+   con MasterPayroll (minimo, scatti, aliquota INPS, costo); l'allievo spiega la causa di ogni differenza.
+6. **Regole e rischi** (`ai/lezioni.py`): AI Act, GDPR, art. 4 dello Statuto dei lavoratori, L. 132/2025; quiz di 10 domande.
+
+**Modello linguistico facoltativo** (`ai/llm.py`): spento senza `LLM_API_KEY` e `LLM_MODEL` (API Anthropic). Se attivo,
+riformula solo le schede trovate dall'Assistente CCNL; non riceve dati dei dipendenti; tetto mensile per allievo
+`LLM_LIMITE_MESE` (default 30) e registro delle chiamate. Tutto il resto funziona senza.
+
+**ccnl-engine** (Lucas Puerari, licenza MIT) 0.6.0 è incluso come pacchetto in `vendor/` (non è ancora su PyPI): è in
+versione alpha e molti valori sono estratti con l'AI e non revisionati da una persona, quindi nel corso è una seconda
+opinione da verificare. ERPNext (GPL) non è stato usato: dalla versione 14 il suo modulo paghe è in un'app separata.
+Piano e decisioni in `PIANO_AI_PAGHE.md`.
+
 ## Esercizio passo passo
 
 Su ogni pagina c'è la finestra a destra **Esercizio passo passo** (ottobre–dicembre 2026, 35 passi): per ogni azione
@@ -115,7 +144,7 @@ ripristino, report CSV. Le formule scritte dagli allievi passano da un valutator
 ```bash
 pip install -r requirements.txt
 ADMIN_PASSWORD=una-password python app.py      # http://localhost:5000  utente: docente
-python -m pytest                               # 44 test
+python -m pytest                               # 52 test
 ```
 
 ## Deploy su Railway

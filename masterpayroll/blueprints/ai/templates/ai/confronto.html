@@ -1,0 +1,22 @@
+{% extends "ai/_base.html" %}
+{% block corpo %}
+{% if manca %}<div class="alert alert-warning">Il motore ccnl-engine non è installato su questo server.</div>{% else %}
+<form method="post" class="card" id="esercitazione">{{ csrf() }}
+<div class="card-header">Busta di novembre 2026: MasterPayroll contro ccnl-engine (CCNL metalmeccanico Federmeccanica, azienda con 8 dipendenti)</div>
+<div class="card-body small"><div class="table-responsive"><table class="table table-sm align-middle">
+<thead><tr><th>Dipendente</th><th>Liv.</th><th>Contratto</th><th class="num">Minimo MP</th><th class="num">Minimo engine</th><th class="num">Scatti MP</th><th class="num">Scatti engine</th><th class="num">Aliq. INPS az. MP / engine</th><th class="num">Costo mese engine</th><th>Dati mancanti</th><th>Causa principale della differenza</th></tr></thead>
+{% for r in righe %}<tr>
+  <td>{{ r.nome }}</td><td>{{ r.livello }}</td><td>{{ r.tipo }}{% if r.part_time < 100 %} · PT {{ r.part_time|num(0) }}%{% endif %}</td>
+  {% if r.en %}
+  <td class="num">{{ r.mp_minimo|euro }}</td><td class="num">{{ r.en.minimo|euro }}</td>
+  <td class="num">{{ r.mp_scatti|euro }} <span class="text-muted">({{ r.scatti_n }})</span></td><td class="num">{{ r.en.scatti|euro }}</td>
+  <td class="num">{{ r.mp_aliquota|num(2) }}% / {{ r.en.aliquota_inps|num(2) }}%</td><td class="num">{{ r.en.costo|euro }}</td>
+  <td class="text-muted text-nowrap" title="{{ r.en.dati_mancanti|join(', ') }}">{{ r.en.dati_mancanti|length }} dati <i class="bi bi-info-circle"></i></td>
+  {% else %}<td colspan="7" class="text-warning">Il motore non copre questo caso: {{ r.errore }}</td>{% endif %}
+  <td><select name="causa_{{ r.matricola }}" class="form-select form-select-sm"><option value="">—</option>{% for c in cause %}<option {{ 'selected' if risposte.get(r.matricola) == c }}>{{ c }}</option>{% endfor %}</select>
+  {% if soluzioni and risposte %}{% if risposte.get(r.matricola) == soluzioni.get(r.matricola) %}<i class="bi bi-check2 text-success"></i>{% elif soluzioni.get(r.matricola) %}<i class="bi bi-x text-danger"></i>{% endif %}{% endif %}</td>
+</tr>{% endfor %}</table></div>
+<p>Per ogni dipendente scegli la causa che spiega la differenza <b>più grande</b> tra minimo e scatti (per l'apprendista, la sua percentuale). Si supera sbagliando al massimo una risposta. Nessun risultato del motore è «pagabile»: mancano i dati elencati, che il motore chiede invece di indovinare.</p>
+<button class="btn btn-primary">Verifica</button></div></form>
+{% endif %}
+{% endblock %}

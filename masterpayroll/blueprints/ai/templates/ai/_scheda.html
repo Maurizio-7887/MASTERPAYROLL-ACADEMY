@@ -1,0 +1,9 @@
+<div class="border rounded p-2 mb-2">
+  <div class="d-flex justify-content-between flex-wrap"><b>{{ s.titolo }}</b><span class="text-muted">{{ s.contratto }}{% if punti %} · punteggio {{ punti|num(2) }}{% endif %}</span></div>
+  <div>{{ s.testo }}</div>
+  {% if s.fonte %}<div class="mt-1 text-muted"><i class="bi bi-bookmark"></i> {{ s.fonte.sezione or 'sezione non indicata' }}{% if s.fonte.pagina %}, p. {{ s.fonte.pagina }}{% endif %} ·
+    <span class="badge {{ 'bg-success-subtle text-success-emphasis' if s.fonte.stato == 'verificato sulla fonte' else 'bg-warning-subtle text-warning-emphasis' }}">{{ s.fonte.stato }}</span>
+    {% if s.fonte.citazione %}<div class="fst-italic">«{{ s.fonte.citazione }}»</div>{% endif %}
+    {% if s.fonte.url %}<a href="{{ s.fonte.url }}" target="_blank" rel="noopener" class="small">{{ s.fonte.documento|truncate(110) }}</a>{% endif %}</div>
+  {% else %}<div class="mt-1 text-warning">Fonte non indicata nella banca dati: da verificare sul testo.</div>{% endif %}
+</div>

@@ -1,0 +1,6 @@
+{% extends "ai/_base.html" %}
+{% block corpo %}
+<ul class="nav nav-pills mb-3 small">{% for k, n in contratti.items() %}<li class="nav-item"><a class="nav-link {{ 'active' if k == cid }}" href="{{ url_for('ai.ccnl_schede', ccnl=k) }}">{{ n }}</a></li>{% endfor %}</ul>
+<div class="small">{% set punti = none %}{% for s in schede %}{% include "ai/_scheda.html" %}{% endfor %}</div>
+<p class="small text-muted">{{ schede|length }} schede costruite dalle regole di ccnl-engine. Valori estratti con l'AI dai testi firmati: lo stato dice se una persona o un'AI li ha controllati sulla fonte.</p>
+{% endblock %}

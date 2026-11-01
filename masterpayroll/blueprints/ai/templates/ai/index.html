@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}AI Lab{% endblock %}
+{% block content %}
+<div class="small text-uppercase text-muted" style="letter-spacing:.06em">MasterPayroll Academy</div>
+<h1 class="h4 page-title">AI Lab · l'intelligenza artificiale attorno al cedolino</h1>
+<p class="text-muted">Il software paghe calcola le buste e prepara F24, UniEmens e CU: quello resta al gestionale e al consulente del lavoro. L'AI lavora <b>attorno</b> al cedolino: interpretare il contratto, acquisire presenze e note spese, controllare le anomalie prima della chiusura, rispondere ai dipendenti. Sei laboratori sulla stessa Ferro &amp; Transenne, ognuno con lezione ed esercitazione corretta in automatico.</p>
+{% set superate = esiti.values()|selectattr('superato')|list|length %}
+<div class="progress mb-3" style="height:8px"><div class="progress-bar bg-success" style="width:{{ (superate / labs|length * 100)|round }}%"></div></div>
+<p class="small text-muted">{{ superate }} esercitazioni superate su {{ labs|length }}.</p>
+<div class="row g-3">
+{% for l in labs %}{% set es = esiti.get(l.id) %}
+  <div class="col-md-6 col-xl-4"><a href="{{ url_for('ai.' + l.id) }}" class="card h-100 text-decoration-none text-reset">
+    <div class="card-body"><div class="d-flex justify-content-between"><span class="fs-3"><i class="bi {{ l.icona }}"></i></span>
+      {% if es and es.superato %}<span class="badge bg-success align-self-start">superata</span>{% elif es %}<span class="badge bg-warning text-dark align-self-start">in corso</span>{% endif %}</div>
+      <h2 class="h6 mt-2">{{ l.n }}. {{ l.titolo }}</h2><p class="small text-muted mb-0">{{ l.sintesi }}</p></div></a></div>
+{% endfor %}
+</div>
+<div class="alert alert-light border small mt-3 mb-0">
+  <b>Senza modello linguistico funziona tutto</b>: ricerca nei contratti con la fonte, lettura dei file, statistica e machine learning sul computer del gestionale. {% if llm_attivo %}Il modello linguistico è <b>attivo</b>: nell'Assistente CCNL puoi chiedere la risposta riformulata (riceve solo le schede dei contratti, mai dati dei dipendenti).{% else %}Il docente può attivare un modello linguistico impostando <code>LLM_API_KEY</code> e <code>LLM_MODEL</code> sul server: servirà solo a riformulare le risposte, con un tetto mensile di chiamate per allievo.{% endif %}
+  {% if not engine %}<br><b>Attenzione</b>: il motore ccnl-engine non è installato su questo server: Assistente CCNL e Seconda opinione non sono disponibili.{% endif %}
+  <br>Dati simulati, ambiente formativo. Le schede dei contratti e il motore di calcolo vengono da <a href="https://github.com/lucas-puerari/ccnl-engine" target="_blank" rel="noopener">ccnl-engine</a> (licenza MIT, versione alpha).
+</div>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "ai/_base.html" %}
+{% block corpo %}
+<form method="post" class="card" id="esercitazione">{{ csrf() }}<div class="card-header"><b>Esercitazione</b> · 10 domande, una sola risposta giusta (si supera con 8)</div><div class="card-body small">
+<ol>{% for q, opz, giusta in quiz %}{% set i = loop.index0 %}<li class="mb-2">{{ q }}<div>{% for o in opz %}<label class="d-block"><input type="radio" name="q{{ i }}" value="{{ loop.index0 }}" {{ 'checked' if risposte.get(i|string) == loop.index0|string }}> {{ o }}
+  {% if corretto and risposte.get(i|string) == loop.index0|string %}{% if loop.index0 == giusta %}<i class="bi bi-check2 text-success"></i>{% else %}<i class="bi bi-x text-danger"></i>{% endif %}{% endif %}</label>{% endfor %}</div></li>{% endfor %}</ol>
+<button class="btn btn-primary">Verifica</button></div></form>
+{% endblock %}

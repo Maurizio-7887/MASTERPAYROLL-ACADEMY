@@ -1,0 +1,25 @@
+{% extends "ai/_base.html" %}
+{% block corpo %}
+{% if manca %}<div class="alert alert-warning">Il motore ccnl-engine non è installato su questo server.</div>{% else %}
+<div class="card mb-3"><div class="card-body small">
+<form method="get" class="row g-2 align-items-end">
+  <div class="col-md-7"><label class="form-label mb-0">La tua domanda</label><input name="domanda" class="form-control" value="{{ domanda }}" placeholder="es. Quanto si paga lo straordinario nel metalmeccanico?"></div>
+  <div class="col-md-3"><label class="form-label mb-0">Contratto</label><select name="ccnl" class="form-select"><option value="">tutti e tre</option>{% for k, n in contratti.items() %}<option value="{{ k }}" {{ 'selected' if cid == k }}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-primary w-100">Cerca</button></div>
+  {% if llm_attivo %}<div class="col-12"><label class="form-check-label"><input type="checkbox" name="llm" value="1" class="form-check-input" {{ 'checked' if request.args.get('llm') }}> Riformula la risposta con il modello linguistico (riceve solo le schede trovate)</label></div>{% endif %}
+</form>
+<div class="mt-2 text-muted">Prova: {% for e in esempi[:4] %}<a href="{{ url_for('ai.ccnl', domanda=e) }}">{{ e }}</a>{{ ' · ' if not loop.last }}{% endfor %} · <a href="{{ url_for('ai.ccnl_schede') }}">tutte le schede</a></div>
+</div></div>
+{% if domanda %}<div class="card mb-3"><div class="card-header">Risposta dalla banca dati dei contratti</div><div class="card-body small">
+  {% if riformulata %}<div class="alert alert-info"><i class="bi bi-stars"></i> {{ riformulata }}<div class="small text-muted mt-1">Riformulata dal modello linguistico sulle schede qui sotto: controlla sempre la fonte.</div></div>{% elif motivo and motivo != 'ok' %}<div class="text-muted mb-2">Modello linguistico: {{ motivo }}.</div>{% endif %}
+  {% for punti, s in risultati %}{% include "ai/_scheda.html" %}{% else %}<div class="alert alert-warning mb-0">Nella banca dati non c'è una regola che risponda a questa domanda. Va cercata nel testo del contratto o negli accordi aziendali: l'assistente non inventa.</div>{% endfor %}
+</div></div>{% endif %}
+
+<form method="post" class="card" id="esercitazione">{{ csrf() }}<input type="hidden" name="azione" value="quiz">
+<div class="card-header"><b>Esercitazione</b> · trova la risposta con l'assistente e scegli il valore giusto</div><div class="card-body small">
+<p>Per ogni domanda fai la ricerca qui sopra (o guarda le schede del contratto) e scegli il valore che risulta dalla fonte. Si supera con almeno 8 risposte giuste su 10.</p>
+<ol>{% for q in quiz %}<li class="mb-2">{{ q.testo }}<div>{% for o in q.opzioni %}<label class="me-3"><input type="radio" name="q{{ q.n }}" value="{{ o }}" {{ 'checked' if risposte.get(q.n|string) == o }}> {{ o }}</label>{% endfor %}
+  {% if risposte %}{% if risposte.get(q.n|string) == q.giusta %}<i class="bi bi-check2 text-success"></i>{% elif risposte.get(q.n|string) %}<i class="bi bi-x text-danger"></i>{% endif %}{% endif %}</div></li>{% endfor %}</ol>
+<button class="btn btn-primary">Verifica</button></div></form>
+{% endif %}
+{% endblock %}

@@ -158,7 +158,13 @@ def index():
             Payslip.state.in_(["verify", "done"])).count() if ws_id else 0
         n_svolte = EsercitazioneSvolta.query.filter_by(user_id=u.id).count()
         guida = progresso(u.workspace) if u.workspace else (0, 0)
-        righe.append({"u": u, "ore": ore, "sessioni": n_sess, "cedolini": n_ced, "svolte": n_svolte, "guida": guida})
+        ai = 0
+        if ws_id:
+            import json as _json
+            from ...models import AiStato
+            rec = AiStato.query.filter_by(workspace_id=ws_id, chiave="esiti").first()
+            ai = sum(1 for v in _json.loads(rec.valore).values() if v.get("superato")) if rec else 0
+        righe.append({"u": u, "ore": ore, "sessioni": n_sess, "cedolini": n_ced, "svolte": n_svolte, "guida": guida, "ai": ai})
     return render_template("docente/docente.html", righe=righe, credenziali=credenziali, n_es=n_es, da=da, a=a)
 
 

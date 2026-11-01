@@ -87,6 +87,19 @@
           </ul>
         </li>
         <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">AI Lab</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('ai.index') }}"><i class="bi bi-stars"></i> Panoramica dei laboratori</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('ai.ccnl') }}">1. Assistente CCNL</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('ai.presenze') }}">2. Presenze e note spese</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('ai.anomalie') }}">3. Anomalie prima della chiusura</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('ai.sportello') }}">4. Sportello HR</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('ai.confronto') }}">5. Seconda opinione (ccnl-engine)</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('ai.regole') }}">6. Regole e rischi</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Academy</a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('esercizio.panoramica') }}"><i class="bi bi-signpost-split"></i> Esercizio passo passo</a></li>

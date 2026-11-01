@@ -1,0 +1,21 @@
+{% extends "ai/_base.html" %}
+{% block corpo %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card h-100"><div class="card-header"><i class="bi bi-robot"></i> Sportello HR di Ferro &amp; Transenne · assistente automatico</div><div class="card-body small">
+<form method="post" class="mb-2">{{ csrf() }}
+  <label class="form-label mb-0">Stai scrivendo come</label>
+  <select name="dipendente" class="form-select form-select-sm mb-2" onchange="location='?dipendente='+this.value">{% for e in emps %}<option value="{{ e.id }}" {{ 'selected' if emp and e.id == emp.id }}>{{ e.name }}</option>{% endfor %}</select>
+  <div class="input-group"><input name="domanda" class="form-control" placeholder="es. Quante ferie mi sono rimaste?" autofocus><button class="btn btn-primary">Invia</button></div>
+</form>
+<div class="text-muted mb-2">Sono un assistente automatico: rispondo con i tuoi dati e con le regole aziendali; quello che non so lo passo all'ufficio paghe.</div>
+{% if risposta %}<div class="p-2 mb-2 rounded bg-light"><b>Tu:</b> {{ risposta.domanda }}<br><b>Sportello:</b> {{ risposta.risposta }}<div class="text-muted">Fonte: {{ risposta.fonte }}{% if risposta.inoltro %} · inoltrata all'ufficio paghe{% endif %}</div></div>{% endif %}
+<div class="fw-semibold mt-3">Registro delle domande (ultime 30)</div>
+<div style="max-height:300px;overflow:auto"><table class="table table-sm mb-0">{% for r in registro %}<tr><td class="text-muted text-nowrap">{{ r.quando[5:16]|replace('T', ' ') }}</td><td>{{ r.dipendente }}</td><td>{{ r.domanda }}</td><td class="text-muted">{{ r.fonte }}{% if r.inoltro %} · inoltro{% endif %}</td></tr>{% else %}<tr><td class="text-muted">Nessuna domanda.</td></tr>{% endfor %}</table></div>
+</div></div></div>
+<div class="col-lg-5"><div class="card h-100"><div class="card-header">Collaudo: le 10 domande più frequenti</div><div class="card-body small">
+<table class="table table-sm">{% for q, atteso, (r, fonte, inoltro) in collaudo %}<tr><td>{{ q }}<div class="text-muted">{{ r|truncate(110) }}</div></td><td>{% if fonte == atteso %}<i class="bi bi-check2 text-success" title="fonte attesa"></i>{% else %}<i class="bi bi-exclamation-triangle text-warning" title="atteso: {{ atteso }}"></i>{% endif %}</td></tr>{% endfor %}</table>
+<div class="fw-semibold">Regole aziendali che lo sportello conosce</div><ul class="mb-0">{% for t, testo, k in policy %}<li><b>{{ t }}</b>: {{ testo }}</li>{% endfor %}</ul>
+</div></div></div>
+</div>
+<div class="card mt-3" id="esercitazione"><div class="card-body small"><b>Esercitazione</b>: metti alla prova lo sportello con almeno <b>8 domande scritte da te</b>, come almeno <b>2 dipendenti diversi</b>; prova a chiedere i dati di un collega (deve rifiutare) e fai una domanda a cui non sa rispondere (deve inoltrarla). Stato: {{ verifica[1] }}. {% if verifica[0] %}<span class="badge bg-success">superata</span>{% endif %}</div></div>
+{% endblock %}

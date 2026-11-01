@@ -861,7 +861,19 @@ class ControlloPersonale(db.Model):
     __table_args__ = (db.UniqueConstraint("workspace_id", "anno", name="uq_controllo_ws_anno"),)
 
 
-WORKSPACE_MODELS = [ControlloPersonale, DocumentoDipendente, CorsoPartecipante, Corso, VisitaMedica, EmployeeCalendar, EsercizioSpunta,Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
+class AiStato(db.Model):
+    """AI Lab: stato dei laboratori dell'allievo (correzioni delle presenze, segnalazioni di anomalie, risposte, registro
+    dello sportello e delle chiamate al modello linguistico), un record JSON per chiave."""
+    __tablename__ = "ai_stato"
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = ws_fk()
+    chiave = db.Column(db.String(60), nullable=False)
+    valore = db.Column(db.Text, default="{}")
+    updated_at = db.Column(db.DateTime, default=now, onupdate=now)
+    __table_args__ = (db.UniqueConstraint("workspace_id", "chiave", name="uq_ai_stato_ws_chiave"),)
+
+
+WORKSPACE_MODELS = [AiStato, ControlloPersonale, DocumentoDipendente, CorsoPartecipante, Corso, VisitaMedica, EmployeeCalendar, EsercizioSpunta,Contabilizzazione, Cessazione, ProgressivoAnnuo, MailMail, Message, PayslipLine, PayslipWorkedDays, PayslipInput, Payslip, PayslipRun,
                     Leave, Familiare, Contract, Employee, RuleInput, SalaryRule, PayrollStructure,
                     SalaryRuleCategory, ContributionRegister, Partner, ResourceCalendarLeave,
                     ResourceCalendarAttendance, ResourceCalendar, LeaveType, Livello, Parametro,

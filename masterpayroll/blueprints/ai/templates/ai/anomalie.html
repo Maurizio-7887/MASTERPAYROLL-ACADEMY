@@ -1,0 +1,55 @@
+{% extends "ai/_base.html" %}
+{% block corpo %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center">
+  <span>Storico del costo del personale · ottobre 2024 – settembre 2026 ({{ n_righe }} righe)</span>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ai.storico_csv') }}"><i class="bi bi-download"></i> CSV per Python / Colab</a></div>
+  <div class="card-body small">
+  <form method="get" class="d-flex gap-2 mb-2"><select name="dip" class="form-select form-select-sm" style="width:auto"><option value="">ultime 60 righe</option>{% for m, a in anagrafica.items() %}<option value="{{ m }}" {{ 'selected' if filtro == m }}>{{ m }} {{ a.dipendente }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-primary">Mostra</button></form>
+  <div class="table-responsive" style="max-height:340px"><table class="table table-sm table-hover mb-0">
+  <thead class="sticky-top bg-white"><tr><th>Riga</th><th>Mese</th><th>Dipendente</th><th class="num">Ore ord.</th><th class="num">Str.</th><th class="num">Scatti</th><th class="num">Rimborsi</th><th class="num">Aliq. INPS</th><th class="num">Costo</th></tr></thead>
+  {% for r in tabella %}<tr><td>{{ r.riga }}</td><td>{{ r.mese }}</td><td>{{ r.dipendente }}</td><td class="num">{{ r.ore_ordinarie|num(1) }}</td><td class="num">{{ r.ore_straordinario|num(1) }}</td><td class="num">{{ r.scatti|euro }}</td><td class="num">{{ r.rimborsi|euro }}</td><td class="num">{{ (r.aliquota_inps * 100)|num(2) }}%</td><td class="num">{{ r.costo|euro }}</td></tr>{% endfor %}
+  </table></div></div></div></div>
+<div class="col-lg-5"><div class="card h-100"><div class="card-header">Perché costa di più? Scomposizione del costo di un reparto</div><div class="card-body small">
+  <form method="get" class="row g-2 mb-2">
+    <div class="col-12"><select name="reparto" class="form-select form-select-sm">{% for r in reparti %}<option {{ 'selected' if r == rep }}>{{ r }}</option>{% endfor %}</select></div>
+    <div class="col-6"><label class="form-label mb-0">Mese di base</label><select name="base" class="form-select form-select-sm">{% for m in mesi %}<option {{ 'selected' if m == base }}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="col-6"><label class="form-label mb-0">Mese da spiegare</label><select name="conf" class="form-select form-select-sm">{% for m in mesi %}<option {{ 'selected' if m == conf }}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="col-12"><button class="btn btn-sm btn-primary w-100">Scomponi</button></div></form>
+  {% if var %}
+  <table class="table table-sm"><tr><th></th><th class="num">{{ var.base }}</th><th class="num">{{ var.conf }}</th></tr>
+    <tr><td>Costo</td><td class="num">€ {{ var.costo_base|euro }}</td><td class="num">€ {{ var.costo_conf|euro }}</td></tr>
+    <tr><td>Ore pagate</td><td class="num">{{ var.ore_base|num(1) }}</td><td class="num">{{ var.ore_conf|num(1) }}</td></tr>
+    <tr><td>Costo per ora</td><td class="num">€ {{ var.costo_ora_base|euro }}</td><td class="num fw-semibold">€ {{ var.costo_ora_conf|euro }} ({{ '%+.1f'|format(var.var_costo_ora_perc) }}%)</td></tr>
+    <tr><td>Effetto ore</td><td colspan="2" class="num">€ {{ var.effetto_ore|euro }}</td></tr>
+    <tr><td>Effetto costo orario</td><td colspan="2" class="num">€ {{ var.effetto_costo_orario|euro }}</td></tr></table>
+  <div class="alert alert-warning py-2 mb-2"><b>Il costo per ora del reparto {{ var.reparto }} è {{ 'salito' if var.var_costo_ora_perc > 0 else 'sceso' }} del {{ var.var_costo_ora_perc|abs|num(1) }}%</b>{% if var.prime_tre %}: le tre cause principali sono
+    {% for c in var.prime_tre %}{{ c.voce }} di {{ c.dipendente }} ({{ '%+.2f'|format(c.delta) }} €){{ '; ' if not loop.last else '.' }}{% endfor %}{% endif %}</div>
+  <p class="text-muted mb-0">Una causa non è per forza un errore: una trasferta può essere vera. Le cause che corrispondono a un'anomalia vanno segnalate qui sotto.</p>
+  {% endif %}</div></div></div>
+</div>
+
+<form method="post" class="card mt-3" id="esercitazione">{{ csrf() }}<input type="hidden" name="contaminazione" value="{{ contaminazione|inval }}">
+<div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><span><b>Esercitazione</b> · righe segnalate da almeno un metodo: classificale</span>
+  <span class="small">Isolation Forest, contaminazione <input type="text" name="contaminazione" value="{{ contaminazione|inval }}" class="form-control form-control-sm d-inline-block" style="width:70px" form="ricalcola"> <button class="btn btn-sm btn-outline-secondary" form="ricalcola">Ricalcola</button></span></div>
+<div class="card-body small">
+<p>Nello storico ci sono <b>sette anomalie</b>. Le tre colonne mostrano che cosa ha visto ciascun metodo. Per ogni riga scegli il tipo di anomalia oppure «legittima» (variazione vera, da non correggere); lascia vuoto se non sai. Si supera trovando almeno 6 anomalie con il tipo giusto e con al massimo 2 falsi allarmi.</p>
+<div class="table-responsive"><table class="table table-sm align-middle">
+<thead><tr><th>Riga</th><th>Mese</th><th>Dipendente</th><th>Regole</th><th>Statistica (z-score)</th><th class="num">Isolation Forest</th><th>Il tuo giudizio</th></tr></thead>
+{% for v in cand %}{% set r = v.r %}<tr>
+  <td>{{ r.riga }}</td><td>{{ r.mese }}</td><td>{{ r.dipendente }}<div class="text-muted">{{ r.reparto }}</div></td>
+  <td>{% for t, m in v.regole %}<div><span class="badge bg-danger-subtle text-danger-emphasis">{{ t }}</span> {{ m }}</div>{% else %}<span class="text-muted">—</span>{% endfor %}</td>
+  <td>{% for m in v.z %}<div>{{ m }}</div>{% else %}<span class="text-muted">—</span>{% endfor %}</td>
+  <td class="num">{{ v['if']|num(3) if v['if'] else '—' }}</td>
+  <td><select name="tipo_{{ r.riga }}" class="form-select form-select-sm"><option value="">—</option>{% for t in tipi %}<option value="{{ t }}" {{ 'selected' if seg.get(r.riga|string) == t }}>{{ t }}</option>{% endfor %}</select></td>
+</tr>{% endfor %}</table></div>
+{% if valutazione %}<div class="alert {{ 'alert-success' if valutazione.superata else 'alert-warning' }} mb-2">Anomalie trovate con il tipo giusto: <b>{{ valutazione.trovate|length }}/{{ valutazione.totale }}</b>{% if valutazione.tipo_sbagliato %} · riconosciute ma con il tipo sbagliato: {{ valutazione.tipo_sbagliato|length }}{% endif %} · falsi allarmi: {{ valutazione.falsi|length }}{% if valutazione.falsi %} (righe {{ valutazione.falsi|join(', ') }}){% endif %}.</div>{% endif %}
+<button class="btn btn-primary">Verifica le segnalazioni</button>
+</div></form>
+<form id="ricalcola" method="get" action="{{ url_for('ai.anomalie', _anchor='esercitazione') }}"></form>
+{% if anomalie_docente %}
+<details class="card mt-3"><summary class="card-header text-warning" style="cursor:pointer"><i class="bi bi-mortarboard"></i> Soluzione (visibile solo al docente)</summary>
+<div class="card-body small"><table class="table table-sm mb-0"><tr><th>#</th><th>Mese</th><th>Matr.</th><th>Tipo</th><th>Descrizione</th><th>Chi la trova</th></tr>
+{% for a in anomalie_docente %}<tr><td>{{ a.id }}</td><td>{{ a.mese }}</td><td>{{ a.matricola }}</td><td>{{ a.tipo }}</td><td>{{ a.descrizione }}</td><td>{{ a.metodo }}</td></tr>{% endfor %}</table></div></details>
+{% endif %}
+{% endblock %}
