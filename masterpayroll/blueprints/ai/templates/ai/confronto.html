@@ -12,7 +12,7 @@
   <td class="num">{{ r.mp_scatti|euro }} <span class="text-muted">({{ r.scatti_n }})</span></td><td class="num">{{ r.en.scatti|euro }}</td>
   <td class="num">{{ r.mp_aliquota|num(2) }}% / {{ r.en.aliquota_inps|num(2) }}%</td><td class="num">{{ r.en.costo|euro }}</td>
   <td class="text-muted text-nowrap" title="{{ r.en.dati_mancanti|join(', ') }}">{{ r.en.dati_mancanti|length }} dati <i class="bi bi-info-circle"></i></td>
-  {% else %}<td colspan="7" class="text-warning">Il motore non copre questo caso: {{ r.errore }}</td>{% endif %}
+  {% else %}<td colspan="7" class="text-warning">{{ r.errore }}</td>{% endif %}
   <td><select name="causa_{{ r.matricola }}" class="form-select form-select-sm"><option value="">—</option>{% for c in cause %}<option {{ 'selected' if risposte.get(r.matricola) == c }}>{{ c }}</option>{% endfor %}</select>
   {% if soluzioni and risposte %}{% if risposte.get(r.matricola) == soluzioni.get(r.matricola) %}<i class="bi bi-check2 text-success"></i>{% elif soluzioni.get(r.matricola) %}<i class="bi bi-x text-danger"></i>{% endif %}{% endif %}</td>
 </tr>{% endfor %}</table></div>

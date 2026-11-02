@@ -56,12 +56,37 @@ def _periodo(periods, rif=DATA_RIF):
     return scelto or (periods[-1] if periods else None)
 
 
+_TRADUZIONI_FONTE = [(r"\brate table\b", "tabella delle maggiorazioni"), (r"\btable row\b", "tabella, riga"),
+                     (r"\btable\b", "tabella"), (r"\band\b", "e"), (r"\bpage\b", "pagina"), (r"\brow\b", "riga")]
+
+
+def _italiano(testo):
+    """Le citazioni di ccnl-engine hanno qualche parola inglese nelle indicazioni di sezione: si traducono."""
+    for rx, it in _TRADUZIONI_FONTE:
+        testo = re.sub(rx, it, testo or "")
+    return testo
+
+
+DATI_MANCANTI = {
+    "addizionale_comunale": "comune per l'addizionale comunale", "addizionale_regionale": "regione per l'addizionale regionale",
+    "family_deductions": "familiari a carico", "inps_employee": "contributi INPS di altri rapporti di lavoro",
+    "inps_employer": "categoria INPS dell'azienda", "pension_fund_contribution": "adesione al fondo pensione",
+    "rinnovo_substitute_tax": "imposta sostitutiva sugli aumenti del rinnovo", "tfr": "fondo di tesoreria INPS del TFR",
+    "tfr_revaluation": "fondo TFR accumulato (rivalutazione)", "ulteriore_detrazione_lavoro": "redditi dell'anno (ulteriore detrazione)",
+    "seniority": "anzianità di servizio", "somma_esente": "somma esente del cuneo fiscale", "base_salary": "minimo tabellare",
+}
+
+
+def traduci_dato(codice):
+    return DATI_MANCANTI.get(codice, (codice or "").replace("_", " "))
+
+
 def _fonte(prov):
     if not prov:
         return None
     loc = prov.get("location") or {}
     doc = loc.get("source_document") or {}
-    return {"sezione": loc.get("section", ""), "pagina": loc.get("page", ""), "citazione": loc.get("quote", ""),
+    return {"sezione": _italiano(loc.get("section", "")), "pagina": loc.get("page", ""), "citazione": loc.get("quote", ""),
             "documento": doc.get("title", ""), "url": doc.get("url", ""), "stato": STATI.get(prov.get("status"), prov.get("status", ""))}
 
 
@@ -276,7 +301,7 @@ def busta_engine(livello, inizio, tipo, part_time=100.0, fine=None, cid="metalme
     return {"lordo": float(r.period_gross), "netto": float(r.period_net), "costo": float(r.period_employer_cost),
             "minimo": round(base, 2), "scatti": round(scatti, 2), "inps_azienda": round(inps_er, 2), "tfr": round(tfr, 2),
             "aliquota_inps": round(inps_er / float(r.period_gross) * 100, 2) if float(r.period_gross) else 0.0,
-            "dati_mancanti": sorted({b.feature for b in y.blockers if b.feature}), "pagabile": bool(y.is_payable)}
+            "dati_mancanti": sorted({traduci_dato(b.feature) for b in y.blockers if b.feature}), "pagabile": bool(y.is_payable)}
 
 
 @lru_cache(maxsize=1)
@@ -302,7 +327,7 @@ def confronto(dipendenti):
             riga.update({"en": e, "diff_minimo": round(mp_min - e["minimo"], 2), "diff_scatti": round(mp_sc - e["scatti"], 2),
                          "errore": None})
         except Exception as ex:  # un caso che il motore non copre: lo si dice, non si inventa
-            riga.update({"en": None, "errore": str(ex)[:200]})
+            riga.update({"en": None, "errore": "Il motore non calcola questo caso (dettaglio tecnico: " + str(ex)[:160] + ")"})
         out.append(riga)
     return out
 
