@@ -12,6 +12,7 @@ from flask_login import current_user
 from ...models import (Cessazione, Contabilizzazione, Contract, Corso, CorsoPartecipante, Employee, EsercizioSpunta,
                        Leave, LeaveType, PayslipRun, VisitaMedica, db)
 from ..comune import area
+from .spiegazioni import SPIEGAZIONI
 
 bp = area("esercizio")
 
@@ -303,7 +304,8 @@ def _finestra():
             href = url_for(p["ep"], **p["args"])
         except Exception:
             href = "#"
-        passi.append(dict(p, stato=s, href=href, check=p["check"] is not None, qui=request.endpoint == p["ep"]))
+        passi.append(dict(p, stato=s, href=href, check=p["check"] is not None, qui=request.endpoint == p["ep"],
+                          perche=SPIEGAZIONI.get(p["id"], "")))
     return {"guida": {"codice": cod, "titolo": es["titolo"], "passi": passi, "corrente": corrente,
                       "fatti": sum(1 for s in stati if s), "totale": len(passi),
                       "esercizi": [(k, v["titolo"]) for k, v in ESERCIZI.items()]}}
