@@ -1,0 +1,73 @@
+"""«Cosa stiamo facendo e perché» per ogni passo degli esercizi guidati: compare nella nuvoletta accanto alla casella
+che brilla e nel riquadro del passo. Chiave = id del passo (vale per tutti gli esercizi che usano quel passo)."""
+
+SPIEGAZIONI = {
+    # ── si comincia ──
+    "pulito": "PARTIAMO DA UN AMBIENTE PULITO. Così i numeri che vedrai sono gli stessi della traccia: il ripristino tocca solo il tuo ambiente.",
+    "leggi-settembre": "IMPARIAMO A LEGGERE UNA BUSTA PAGA. Dall'alto: paga base, lordo, contributi INPS, IRPEF e netto. Le trattenute sono negative: il netto è la somma delle righe.",
+    "tabelle": "GUARDIAMO LE REGOLE DEL CONTRATTO. Il CCNL fissa livelli e minimi: la paga base di ogni dipendente parte da qui.",
+    "ai-panoramica": "CONOSCIAMO L'AI LAB. Sei laboratori in cui l'intelligenza artificiale aiuta l'ufficio paghe; tutto funziona anche senza un modello linguistico.",
+    # ── assunzione ──
+    "assunto": "ASSUMIAMO UN DIPENDENTE: PRIMA LA SCHEDA. Anagrafica, mansione e reparto: senza la scheda non si può fare il contratto.",
+    "contratto": "CREIAMO IL CONTRATTO. È il contratto che dice al programma quanto pagare: CCNL, livello, data di inizio. Finché non è «In corso» non entra nelle buste.",
+    "documento": "ARCHIVIAMO IL CONTRATTO FIRMATO. L'ufficio paghe deve poter ritrovare i documenti di ogni dipendente.",
+    "visita": "REGISTRIAMO LA VISITA PREVENTIVA. Prima di lavorare il dipendente deve essere giudicato idoneo dal medico competente: lo scadenzario ricorderà la prossima.",
+    "corso": "REGISTRIAMO LA FORMAZIONE SULLA SICUREZZA. È obbligatoria per ogni nuovo assunto e va tenuta in archivio con le sue scadenze.",
+    # ── assenze ──
+    "malattia": "REGISTRIAMO UNA MALATTIA. I primi 3 giorni (carenza) li paga l'azienda; dal 4° paga l'INPS al 50%, ma l'azienda anticipa l'indennità in busta e se la riprende con l'F24.",
+    "rol": "REGISTRIAMO UN PERMESSO DI 4 ORE. Con il ROL la paga non cambia: scende solo il contatore delle ore di permesso.",
+    "ferie": "REGISTRIAMO DUE GIORNI DI FERIE. La paga non cambia; scende il residuo di ferie del dipendente.",
+    # ── buste di ottobre ──
+    "gruppo-ott": "APRIAMO IL MESE DELLE PAGHE. Il gruppo raccoglie tutte le buste di ottobre: nasce in bozza, ancora vuoto.",
+    "genera-ott": "CALCOLIAMO LE BUSTE DI OTTOBRE. Il programma legge contratti, orari, festività e assenze e fa una busta per ogni dipendente.",
+    "regola-str": "GUARDIAMO DENTRO UNA REGOLA DI CALCOLO. Ogni riga della busta nasce da una regola: lo straordinario vale ore × 125% × paga oraria.",
+    "str-ott": "AGGIUNGIAMO LO STRAORDINARIO. Le ore in più si scrivono come «apporto» nella busta: salgono il lordo, i contributi e l'IRPEF.",
+    "trasf-ott": "AGGIUNGIAMO LA TRASFERTA. Fino a 46,48 € al giorno è esente: entra nel netto ma non paga contributi né IRPEF.",
+    "premio-ott": "AGGIUNGIAMO UN PREMIO. È retribuzione a tutti gli effetti: paga contributi e IRPEF come lo stipendio.",
+    "leggi-malattia": "LEGGIAMO LA MALATTIA IN BUSTA. L'azienda toglie lo stipendio dei giorni pagati dall'INPS e mette l'indennità INPS, che poi recupera con l'F24.",
+    "leggi-santini": "LEGGIAMO LA PRIMA BUSTA DEL NUOVO ASSUNTO. Mese intero, nessuno scatto: contributi e IRPEF come per gli altri.",
+    "conferma-ott": "CONFERMIAMO LE BUSTE DI OTTOBRE. Una busta confermata non si tocca più: da ora entra in F24, libro unico e contabilità.",
+    "chiudi-ott": "CHIUDIAMO IL MESE. Con il lotto chiuso ottobre è definitivo.",
+    "email-ott": "MANDIAMO LE BUSTE AI DIPENDENTI. Ognuno riceve la sua busta in PDF per email.",
+    "f24-ott": "PREPARIAMO L'F24 DI OTTOBRE. Entro il 16 novembre si versano IRPEF e contributi trattenuti; l'indennità di malattia anticipata si scala dai contributi INPS.",
+    "contab-ott": "PORTIAMO LE PAGHE IN CONTABILITÀ. Costo del personale in Dare; debiti verso dipendenti, INPS, Erario, INAIL e fondo TFR in Avere. Dare e Avere devono quadrare.",
+    "lul-ott": "CONTROLLIAMO IL LIBRO UNICO. È il registro obbligatorio di presenze e paghe: le assenze devono comparire con il loro codice giorno per giorno.",
+    "ferie-ott": "CONTROLLIAMO FERIE E PERMESSI RESIDUI. Ogni assenza registrata deve aver fatto scendere il contatore giusto.",
+    "visita-bianchi": "REGISTRIAMO UNA VISITA PERIODICA. La visita dell'anno scorso scadeva oggi: senza la nuova il dipendente non sarebbe in regola.",
+    # ── controllo di gestione ──
+    "cruscotto": "LEGGIAMO QUANTO COSTA IL PERSONALE. Costo aziendale, persone equivalenti a tempo pieno, incidenza degli oneri: sono i numeri che chiede la direzione.",
+    "reparti": "CONFRONTIAMO I REPARTI. Il costo orario dice dove il lavoro costa di più: serve per i prezzi e per il budget.",
+    "budget": "SCRIVIAMO IL BUDGET DEL PERSONALE. Lo scostamento si divide in effetto ore (si è lavorato di più o di meno) ed effetto costo orario.",
+    "premio": "SIMULIAMO IL PREMIO DI RISULTATO. Cambiando l'obiettivo raggiunto si vede subito quanto costa all'azienda.",
+    # ── novembre ──
+    "trasf-ferri": "TRASFORMIAMO UN PART-TIME IN TEMPO PIENO. Il vecchio contratto si chiude il giorno prima e ne parte una nuova versione con il nuovo orario.",
+    "gruppo-nov": "APRIAMO E CALCOLIAMO NOVEMBRE. Stesso lavoro di ottobre: gruppo, poi una busta per dipendente.",
+    "leggi-ferri": "LEGGIAMO UNA BUSTA CON DUE CONTRATTI NELLO STESSO MESE. Metà mese al 50% e metà al 100%: il programma pesa ogni versione per i suoi giorni.",
+    "leggi-nov": "CONTROLLIAMO UNA BUSTA CREATA DALL'AI LAB. Gli straordinari e la malattia letti dai file devono essere finiti negli apporti giusti.",
+    "chiudi-nov": "CONFERMIAMO E CHIUDIAMO NOVEMBRE. Le buste diventano definitive e il mese si chiude.",
+    "corso-moretti": "REGISTRIAMO UN CORSO DI ABILITAZIONE. Il patentino dei carrelli vale 5 anni: lo scadenzario avviserà quando va rinnovato.",
+    "cessazione": "UN DIPENDENTE SI DIMETTE. Calcoliamo il TFR (fondo, rivalutazioni, tassazione separata) e chiudiamo il rapporto con la busta di liquidazione.",
+    "liquidazione": "CONTROLLIAMO LA BUSTA DI LIQUIDAZIONE. Ferie non godute, ratei di tredicesima, TFR e le sue ritenute: è l'ultima busta del dipendente.",
+    "f24-nov": "GUARDIAMO I CODICI NUOVI DELL'F24. Con il TFR compaiono il 1012 (ritenute sul TFR) e il 1713 (imposta sulla rivalutazione).",
+    "tfr-galli": "SIMULIAMO UN TFR SENZA CONFERMARE. Serve per rispondere a un dipendente che chiede «quanto prenderei se me ne andassi?».",
+    "ferie-nov": "CONTROLLIAMO FERIE E PERMESSI AL 30 NOVEMBRE. Il nuovo assunto matura le ferie mese per mese.",
+    # ── dicembre ──
+    "gruppo-13": "APRIAMO LA TREDICESIMA. È un gruppo a parte con la sua struttura di calcolo (IT13).",
+    "conferma-13": "CALCOLIAMO E CONFERMIAMO LA TREDICESIMA. Ognuno ha un rateo per ogni mese lavorato; l'IRPEF si applica all'aliquota marginale.",
+    "tredicesima": "CALCOLIAMO E CONFERMIAMO LA TREDICESIMA. Ognuno ha un rateo per ogni mese lavorato; chi è stato assunto in corso d'anno ne ha meno.",
+    "gruppo-dic": "APRIAMO DICEMBRE. Nelle buste di dicembre arriva il conguaglio di fine anno.",
+    "dicembre": "BUSTE DI DICEMBRE CON IL CONGUAGLIO. Si ricalcola l'IRPEF vera dell'anno e si restituisce o trattiene la differenza.",
+    "leggi-conguaglio": "LEGGIAMO IL CONGUAGLIO. L'IRPEF vera dell'anno meno quella già trattenuta: chi ha lavorato pochi mesi di solito riceve un rimborso.",
+    "chiudi-dic": "CONFERMIAMO E CHIUDIAMO DICEMBRE. L'anno delle paghe è completo.",
+    "contab-dic": "PORTIAMO DICEMBRE IN CONTABILITÀ. Con tredicesima, conguagli e cuneo fiscale.",
+    "cu": "LEGGIAMO LA CERTIFICAZIONE UNICA. È il riassunto dell'anno che il dipendente usa per la dichiarazione dei redditi: redditi, ritenute, giorni di lavoro.",
+    "scadenzario": "CONTROLLIAMO LE SCADENZE DEL PERSONALE. Visite mediche e corsi scaduti vanno riprogrammati: il datore di lavoro ne risponde.",
+    # ── AI Lab ──
+    "ai-ccnl": "USIAMO L'ASSISTENTE DEL CONTRATTO. Risponde citando articolo e pagina del CCNL: la risposta si controlla sempre sulla fonte.",
+    "ai-presenze": "PORTIAMO IN BUSTA PRESENZE E NOTE SPESE DA FILE DIVERSI. L'AI legge Excel, badge e scontrini; noi correggiamo i casi dubbi prima di calcolare.",
+    "ai-anomalie": "CERCHIAMO GLI ERRORI PRIMA DI CHIUDERE. L'AI segnala le righe strane nello storico: decidiamo noi se sono errori o casi legittimi.",
+    "ai-confronto": "CHIEDIAMO UNA SECONDA OPINIONE. Un motore esterno ricalcola minimi e scatti: le differenze vanno spiegate una per una.",
+    "ai-sportello": "METTIAMO ALLA PROVA LO SPORTELLO HR. Risponde ai dipendenti sui loro dati, ma non deve mai mostrare quelli di un collega.",
+    "ai-regole": "IMPARIAMO LE REGOLE SULL'AI E I DATI DEI LAVORATORI. AI Act, GDPR e Statuto dei lavoratori dicono cosa si può fare e cosa no.",
+    "consegna": "CONSEGNIAMO L'ESERCITAZIONE. Il docente vede tutto il lavoro fatto e la tua nota.",
+}

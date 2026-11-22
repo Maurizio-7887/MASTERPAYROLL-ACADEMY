@@ -18,9 +18,10 @@
       {% for p in guida.passi %}<option value="{{ loop.index0 }}">{{ '✓' if p.stato else '○' }} {{ loop.index }}. {{ p.titolo }}</option>{% endfor %}
     </select>
     {% for p in guida.passi %}
-    <section class="guida-passo" data-i="{{ loop.index0 }}" hidden>
+    <section class="guida-passo" data-i="{{ loop.index0 }}" data-qui="{{ 1 if p.qui else 0 }}" data-campi='{{ p.campi|tojson|forceescape }}' data-titolo="{{ p.titolo }}" data-perche="{{ p.perche }}" hidden>
       <div class="guida-cap">{{ p.cap }}</div>
       <h6 class="guida-h">{{ loop.index }}. {{ p.titolo }}</h6>
+      {% if p.perche %}<div class="guida-stiamo"><span>📌 COSA STIAMO FACENDO</span>{{ p.perche }}</div>{% endif %}
       <div class="guida-dove">
         {% if p.qui %}<span class="text-success fw-semibold"><i class="bi bi-geo-alt-fill"></i> Sei nella pagina giusta</span>
         {% else %}<a class="btn btn-sm btn-primary" href="{{ p.href }}"><i class="bi bi-box-arrow-in-right"></i> Apri la pagina</a>{% endif %}
@@ -75,5 +76,8 @@
   apri.addEventListener('click', function () { aperta(true); });
   var ap = '1'; try { ap = localStorage.getItem(K + '-aperta') || '1'; } catch (e) {}
   mostra(pos); aperta(ap === '1');
+  window.__guidaPos = function () { return pos; };
 })();
 </script>
+<link rel="stylesheet" href="{{ url_for('static', filename='guida-luce.css') }}">
+<script src="{{ url_for('static', filename='guida-luce.js') }}"></script>
